@@ -22,4 +22,4 @@ for (var i = 0; i < jsonShapeData.length; i++) {
 
 // Add paths to each layer
 addPathItem(doc, "kogg", shapesDict)
-// addPathItem(doc, "normal", shapesDict)
+addPathItem(doc, "normal", shapesDict)

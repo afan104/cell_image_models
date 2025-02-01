@@ -28,7 +28,7 @@ function getPathPointInfo(pointPosition) {
   ppi.kind = PointKind.CORNERPOINT
   ppi.anchor = pointPosition
   ppi.leftDirection = pointPosition
-  ppi.RightDirection = pointPosition
+  ppi.rightDirection = pointPosition
   return ppi
 }
 
@@ -42,13 +42,13 @@ function getSubPathInfo(shape) {
 
     // add to subpath
     entireSubPath.push(ppi)
-    alert("adding point to subpath")
   }
 
   // define SubPathInfo as an object
   var spi = new SubPathInfo()
   spi.entireSubPath = entireSubPath
   spi.closed = true
+  spi.operation = ShapeOperation.SHAPEADD
   return spi
 }
 
@@ -62,46 +62,16 @@ function addPathItem(doc, name, shapesDict) {
   // get all shapes (array of subpathinfo objects)
   var spiArray = []
   var shapes = shapesDict[name]
-  shapes = [
-    [
-      [1, 2],
-      [3, 5],
-      [, 4, 6],
-    ],
-    [
-      [7, 8],
-      [9, 10],
-      [11, 12],
-    ],
-  ] //debug
 
   for (var i = 0; i < shapes.length; i++) {
     var shape = shapes[i]
     var spi = getSubPathInfo(shape)
     spiArray.push(spi)
     alert("added subpath info to spiArray")
-    if (spiArray.length == 2) {
-      break // get two shapes
-    }
   }
 
-  alert("checking spiArray contains subpath info")
-  for (var i = 0; i < spiArray.length; i++) {
-    for (var j = 0; j < spiArray[i].entireSubPath.length; j++) {
-      alert("anchor")
-      alert(spiArray[i].entireSubPath[j].anchor)
-      alert(typeof spiArray[i].entireSubPath[j].anchor[1])
-      alert("left")
-      alert(spiArray[i].entireSubPath[j].leftDirection)
-      alert("right")
-      alert(spiArray[i].entireSubPath[j].rightDirection)
-      alert("kind")
-      alert(spiArray[i].entireSubPath[j].kind)
-    }
-  }
   // Check the contents of spiArray
   var pathItem = doc.pathItems.add(name, spiArray)
-  alert(2)
   pathItem.PathKind = PathKind.VECTORMASK
 
   // add stroke to visualize
