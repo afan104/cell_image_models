@@ -23,3 +23,5 @@ for (var i = 0; i < jsonShapeData.length; i++) {
 // Add paths to each layer
 addPathItem(doc, "kogg", shapesDict)
 addPathItem(doc, "normal", shapesDict)
+// check how many pathItems are in the document
+alert("Done with file: " + doc.name)

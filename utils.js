@@ -52,14 +52,9 @@ function getSubPathInfo(shape) {
   return spi
 }
 
-// function to create and add PathItem
+// function to create and add PathItem to vector mask layer linked to artlayer
 function addPathItem(doc, name, shapesDict) {
-  // create layer for vector mask and set active layer
-  var layer = doc.artLayers.add()
-  layer.name = name
-  doc.activeLayer = layer
-
-  // get all shapes (array of subpathinfo objects)
+  // get all PathItem shapes (array of subpathinfo objects)
   var spiArray = []
   var shapes = shapesDict[name]
 
@@ -67,13 +62,8 @@ function addPathItem(doc, name, shapesDict) {
     var shape = shapes[i]
     var spi = getSubPathInfo(shape)
     spiArray.push(spi)
-    alert("added subpath info to spiArray")
   }
 
-  // Check the contents of spiArray
   var pathItem = doc.pathItems.add(name, spiArray)
   pathItem.PathKind = PathKind.VECTORMASK
-
-  // add stroke to visualize
-  pathItem.strokePath(ToolType.PENCIL)
 }
