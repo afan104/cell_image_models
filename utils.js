@@ -1,3 +1,7 @@
+/////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////*SIMPLE UTILITY FUNCTIONS*////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
 // read json file and return json object
 function readJsonFile(jsonFilePath) {
   var file = File(jsonFilePath)
@@ -21,6 +25,17 @@ function readJsonFile(jsonFilePath) {
     return
   }
 }
+
+// close all files
+function closeAll() {
+  while (app.documents.length) {
+    app.activeDocument.close(SaveOptions.DONOTSAVECHANGES)
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////*DRAWING SHAPES IN PHOTOSHOP*//////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 // function to create pathPointInfo object
 function getPathPointInfo(pointPosition) {
@@ -99,10 +114,12 @@ function jsonToImgs(doc, jsonFilePath, maskType, scale) {
     var normalPathItem = addPathItem(doc, "normal", shapesDict, scale)
     var out = { kog1PathItem: kog1PathItem, normalPathItem: normalPathItem }
   }
-  // check how many pathItems are in the document
-  alert("Done adding path data")
   return out
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////*COMPLEX IMG & MASK UTILITY*///////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 // function that visualizes masks on images and allows you to visually record matches
 function compareMasksImgs(currDir, maskType, scale) {
@@ -145,18 +162,18 @@ function compareMasksImgs(currDir, maskType, scale) {
         record = record + String(jsonFiles[j].name)
         matchedJson.push(j)
         break
-      }
-
-      // clear masks if not a match
-      if (maskType == "kog1") {
-        pathItems.kog1PathItem.remove()
-      }
-      if (maskType == "normal") {
-        pathItems.normalPathItem.remove()
-      }
-      if (maskType == "both") {
-        pathItems.normalPathItem.remove()
-        pathItems.kog1PathItem.remove()
+      } else {
+        // clear masks if not a match
+        if (maskType == "kog1") {
+          pathItems.kog1PathItem.remove()
+        }
+        if (maskType == "normal") {
+          pathItems.normalPathItem.remove()
+        }
+        if (maskType == "both") {
+          pathItems.normalPathItem.remove()
+          pathItems.kog1PathItem.remove()
+        }
       }
     }
   }
@@ -164,9 +181,64 @@ function compareMasksImgs(currDir, maskType, scale) {
   return record
 }
 
-// close all files
-function closeAll() {
-  while (app.documents.length) {
-    app.activeDocument.close(SaveOptions.DONOTSAVECHANGES)
+// .include and .has not supported in photoshop
+function chooseMaskType() {
+  const validMaskTypes = ["both", "normal", "kog1"]
+  var maskType = prompt("Choose mask option: normal, kog1, both")
+  var validMaskType = false
+
+  while (!validMaskType) {
+    // check if valid masktype
+    for (var i = 0; i < validMaskTypes.length; i++) {
+      if (maskType == validMaskTypes[i]) {
+        validMaskType = true
+        break
+      }
+    }
+
+    // retry prompt if invalid
+    if (!validMaskType) {
+      maskType = prompt(
+        "Invalid maskType\nChoose mask option: normal, kog1, both"
+      )
+    }
+  }
+  return maskType
+}
+
+// optional: sanity check prompt that compares all masks to imgs until correct pairs found
+function sanityCheckMasks(currDir, scale) {
+  var skipSanityCheck = confirm("skip sanity check?")
+  while (!skipSanityCheck) {
+    var maskType = chooseMaskType()
+    compareMasksImgs(currDir, maskType, scale)
+    alert("sanity check completed")
+    skipsanityCheck = confirm("skip repeat sanity check?")
+  }
+  closeAll()
+}
+
+function drawMasksInOrder(currDir) {
+  alert("drawing masks")
+  // get files
+  const imgDir = currDir + "imgFiles/"
+  const jsonDir = currDir + "jsonFiles/"
+  const imgFiles = Folder(imgDir).getFiles("*.png")
+  const jsonFiles = Folder(jsonDir).getFiles("*.json")
+  const maskType = chooseMaskType()
+
+  // go through each image
+  for (var i = 0; i < imgFiles.length; i++) {
+    // open doc
+    app.open(imgFiles[i])
+    var doc = app.activeDocument
+
+    // draw target mask path
+    jsonToImgs(doc, String(jsonFiles[i]), maskType, scale)
+  }
+  alert("all masks completed")
+  var open = confirm("keep all images open?")
+  if (!open) {
+    closeAll()
   }
 }
