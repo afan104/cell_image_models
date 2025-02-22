@@ -4,13 +4,10 @@
 
 closeAll()
 const currDir = "~/Desktop/capaldi/"
-const scale = 1608 / 2235
+const pixelToPointConversion = 1608 / 2235
 
 // sanity check the masks are matching
-sanityCheckMasks(currDir, scale)
+sanityCheckMasks(currDir, pixelToPointConversion)
 
 // overlay img and masks in order of name
-drawMasksInOrder(currDir)
-
-// complete and close options
-
+drawMasksInOrder(currDir, pixelToPointConversion)

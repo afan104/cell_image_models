@@ -66,7 +66,7 @@ function getSubPathInfo(shape, scale) {
   var spi = new SubPathInfo()
   spi.entireSubPath = entireSubPath
   spi.closed = true
-  spi.operation = ShapeOperation.SHAPEADD
+  spi.operation = ShapeOperation.SHAPEADD // FOR BUBI: THIS PART USED TO BE MISSING
   return spi
 }
 
@@ -184,7 +184,8 @@ function compareMasksImgs(currDir, maskType, scale) {
 // .include and .has not supported in photoshop
 function chooseMaskType() {
   const validMaskTypes = ["both", "normal", "kog1"]
-  var maskType = prompt("Choose mask option: normal, kog1, both")
+  // var maskType = prompt("Choose mask option: normal, kog1, both")
+  var maskType = "both" //debug
   var validMaskType = false
 
   while (!validMaskType) {
@@ -218,7 +219,7 @@ function sanityCheckMasks(currDir, scale) {
   closeAll()
 }
 
-function drawMasksInOrder(currDir) {
+function drawMasksInOrder(currDir, scale) {
   alert("drawing masks")
   // get files
   const imgDir = currDir + "imgFiles/"
