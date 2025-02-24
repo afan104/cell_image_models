@@ -66,7 +66,7 @@ function getSubPathInfo(shape, scale) {
   var spi = new SubPathInfo()
   spi.entireSubPath = entireSubPath
   spi.closed = true
-  spi.operation = ShapeOperation.SHAPEADD // FOR BUBI: THIS PART USED TO BE MISSING
+  spi.operation = ShapeOperation.SHAPEADD
   return spi
 }
 
@@ -122,10 +122,10 @@ function jsonToImgs(doc, jsonFilePath, maskType, scale) {
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 // function that visualizes masks on images and allows you to visually record matches
-function compareMasksImgs(currDir, maskType, scale) {
+function compareMasksImgs(dataDir, maskType, scale) {
   // get files
-  const imgDir = currDir + "imgFiles/"
-  const jsonDir = currDir + "jsonFiles/"
+  const imgDir = dataDir + "imgFiles/"
+  const jsonDir = dataDir + "jsonFiles/"
   const imgFiles = Folder(imgDir).getFiles("*.png")
   const jsonFiles = Folder(jsonDir).getFiles("*.json")
 
@@ -184,8 +184,7 @@ function compareMasksImgs(currDir, maskType, scale) {
 // .include and .has not supported in photoshop
 function chooseMaskType() {
   const validMaskTypes = ["both", "normal", "kog1"]
-  // var maskType = prompt("Choose mask option: normal, kog1, both")
-  var maskType = "both" //debug
+  var maskType = prompt("Choose mask option: normal, kog1, both")
   var validMaskType = false
 
   while (!validMaskType) {
@@ -208,22 +207,24 @@ function chooseMaskType() {
 }
 
 // optional: sanity check prompt that compares all masks to imgs until correct pairs found
-function sanityCheckMasks(currDir, scale) {
+function sanityCheckMasks(dataDir, scale) {
   var skipSanityCheck = confirm("skip sanity check?")
+  alert("sanity check skipped: " + String(skipSanityCheck))
   while (!skipSanityCheck) {
     var maskType = chooseMaskType()
-    compareMasksImgs(currDir, maskType, scale)
+    compareMasksImgs(dataDir, maskType, scale)
     alert("sanity check completed")
-    skipsanityCheck = confirm("skip repeat sanity check?")
+    skipSanityCheck = confirm("skip repeat sanity check?")
+    alert("sanity check skipped: " + String(skipSanityCheck))
   }
   closeAll()
 }
 
-function drawMasksInOrder(currDir, scale) {
+function drawMasksInOrder(dataDir, scale) {
   alert("drawing masks")
   // get files
-  const imgDir = currDir + "imgFiles/"
-  const jsonDir = currDir + "jsonFiles/"
+  const imgDir = dataDir + "imgFiles/"
+  const jsonDir = dataDir + "jsonFiles/"
   const imgFiles = Folder(imgDir).getFiles("*.png")
   const jsonFiles = Folder(jsonDir).getFiles("*.json")
   const maskType = chooseMaskType()
