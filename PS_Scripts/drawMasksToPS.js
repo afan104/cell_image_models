@@ -3,11 +3,11 @@
 #include json2.js
 
 closeAll()
-const currDir = "~/Desktop/capaldi/"
+const dataDir = "~/Desktop/capaldi/"
 const pixelToPointConversion = 1608 / 2235
 
 // sanity check the masks are matching
-sanityCheckMasks(currDir, pixelToPointConversion)
+sanityCheckMasks(dataDir, pixelToPointConversion)
 
 // overlay img and masks in order of name
-drawMasksInOrder(currDir, pixelToPointConversion)
+drawMasksInOrder(dataDir, pixelToPointConversion)
