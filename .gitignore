@@ -1,7 +1,4 @@
 .DS_Store
-
-# data files and json2.js
-jsonFiles/
 json2.js
 
 # Byte-compiled / optimized / DLL files
