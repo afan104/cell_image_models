@@ -2,7 +2,7 @@
 ///////////////////////////////////*SIMPLE UTILITY FUNCTIONS*////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-// read json file and return json object
+// read json file and return dict object
 function readJsonFile(jsonFilePath) {
   var file = File(jsonFilePath)
 
@@ -24,6 +24,13 @@ function readJsonFile(jsonFilePath) {
     alert("Error parsing json file")
     return
   }
+}
+
+// remove already annotated images from temporary download directory
+function removeRedundantFiles() {
+  // get already existing file names
+  // compare each download with existing
+  // delete if already existing
 }
 
 // close all files
@@ -124,10 +131,8 @@ function jsonToImgs(doc, jsonFilePath, maskType, scale) {
 // function that visualizes masks on images and allows you to visually record matches
 function compareMasksImgs(dataDir, maskType, scale) {
   // get files
-  const imgDir = dataDir + "imgFiles/"
-  const jsonDir = dataDir + "jsonFiles/"
-  const imgFiles = Folder(imgDir).getFiles("*.png")
-  const jsonFiles = Folder(jsonDir).getFiles("*.json")
+  const imgFiles = Folder(dataDir).getFiles("*.png")
+  const jsonFiles = Folder(dataDir).getFiles("fz*.json")
 
   // record matches
   var record = String(maskType) + " results"
@@ -223,10 +228,10 @@ function sanityCheckMasks(dataDir, scale) {
 function drawMasksInOrder(dataDir, scale) {
   alert("drawing masks")
   // get files
-  const imgDir = dataDir + "imgFiles/"
-  const jsonDir = dataDir + "jsonFiles/"
-  const imgFiles = Folder(imgDir).getFiles("*.png")
-  const jsonFiles = Folder(jsonDir).getFiles("*.json")
+  const imgFiles = Folder(dataDir).getFiles("*.png")
+  alert("first of img files: " + imgFiles.length)
+  const jsonFiles = Folder(dataDir).getFiles("fz*.json")
+  alert("first of json file: " + jsonFiles.length)
   const maskType = chooseMaskType()
 
   // go through each image
@@ -243,4 +248,62 @@ function drawMasksInOrder(dataDir, scale) {
   if (!open) {
     closeAll()
   }
+}
+
+// converts PS masks to a json for a given doc
+function img_to_json(doc, outputPath, annotationTrackerData, trackerDate) {
+  alert("1")
+  var dataDict = {}
+  dataDict["PSversion"] = app.version
+  dataDict["shapes"] = []
+  // loop through all layers
+  for (var layerIndex = 0; layerIndex < doc.artLayers.length; layerIndex++) {
+    var layer = doc.artLayers[layerIndex]
+    doc.activeLayer = layer
+    // loop the paths in the document
+    alert("current layer name: " + layer.name)
+    alert("pathItems length: " + doc.pathItems.length)
+    alert("pathItems: " + doc.pathItems)
+    for (var pathIndex = 0; pathIndex < doc.pathItems.length; pathIndex++) {
+      var pathItem = doc.pathItems[pathIndex]
+      // get all the shapes from pathItem
+      for (
+        var subPathIndex = 0;
+        subPathIndex < pathItem.subPathItems.length;
+        subPathIndex++
+      ) {
+        // define shapeDict for every subPathInfo i.e. shape
+        var shapeDict = {}
+        shapeDict["label"] = layer.name
+        shapeDict["points"] = []
+        for (
+          var pointIndex = 0;
+          pointIndex < pathItem.subPathItems[subPathIndex].pathPoints.length;
+          pointIndex++
+        ) {
+          // for every pathPoint output the anchor position
+          var pointPos =
+            pathItem.subPathItems[subPathIndex].pathPoints[pointIndex].anchor
+          shapeDict["points"].push(pointPos)
+        }
+        dataDict["shapes"].push(shapeDict)
+      }
+    }
+  }
+  alert("2")
+  dataDict["imageName"] = doc.name
+  dataDict["imageHeight"] = String(doc.height)
+  alert("doc.height is: " + doc.height)
+  dataDict["imageWidth"] = String(doc.width)
+  alert("doc.width is: " + doc.width)
+
+  // write file
+  alert("attempting to write json file")
+  outputPath.open("w")
+  outputPath.write(JSON.stringify(dataDict))
+  outputPath.close()
+  alert("done writing json file")
+
+  // track in the tracker
+  annotationTrackerData[trackerDate].push(doc.name.slice(0, -4))
 }

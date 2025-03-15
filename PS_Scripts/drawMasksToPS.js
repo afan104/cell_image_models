@@ -3,7 +3,7 @@
 #include json2.js
 
 closeAll()
-const dataDir = "~/Desktop/capaldi/"
+const dataDir = "~/Desktop/capaldi/Data/"
 const pixelToPointConversion = 1608 / 2235
 
 // sanity check the masks are matching

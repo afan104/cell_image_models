@@ -1,0 +1,16 @@
+{
+    "PSversion":"",
+    "shapes":[                     
+        {
+            "label":"",
+            "points":List[List[x,y]] 
+        },
+        {
+            "label":"",
+            "points":List[List[x,y]]
+        },
+        ],
+    "imageName": "",
+    "imageHeight": "1608 px",
+    "imageWidth": "1608 px"
+}
