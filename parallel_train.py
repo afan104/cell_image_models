@@ -28,9 +28,7 @@ def generate_hyperparam_combinations():
     for combination in itertools.product(*values):
         # Convert to command-line format:
         cmd_args = [
-            f"--{key} {value}"
-            for key, value in zip(keys, combination)
-            if value is not None
+            f"--{key} {value}" for key, value in zip(keys, combination) if value
         ]
         yield cmd_args
 

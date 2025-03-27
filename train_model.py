@@ -36,7 +36,11 @@ def parse_args():
 
     # Hyperparameters
     parser.add_argument(
-        "--freeze", type=bool, required=True, help="Freeze base model parameters"
+        "--freeze",
+        type=bool,
+        required=False,
+        default=False,
+        help="Whether to freeze the model. Skip the flag to not freeze.",
     )
     parser.add_argument(
         "--optimizer",
@@ -67,7 +71,6 @@ if __name__ == "__main__":
     # hyperparameters/adjustables
     args = parse_args()
     optimizer_info = OPS_HPS[args.optimizer]
-    freeze = args.freeze
 
     # set seed
     seed = 1234
@@ -107,7 +110,7 @@ if __name__ == "__main__":
         class_names=class_names,
         device=device,
         base_model_path=base_model_path,
-        freeze_params=False,
+        freeze_params=args.freeze,
         dtype=dtype,
     )
     # train/test loop
@@ -148,8 +151,11 @@ if __name__ == "__main__":
 
     args = {k: v for k, v in args._get_kwargs()}
     version = "_".join([f"{k}_{v}" for k, v in args.items()])
+
     # make directory if not exists
+    print(f"Saving version: {version}")
     if not os.path.exists(f"output/{version}"):
+        print(f"Creating directory: output/{version}")
         os.makedirs(f"output/{version}")
 
     # losses
