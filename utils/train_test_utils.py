@@ -201,7 +201,7 @@ def save_model(model):
     MODEL_PATH.mkdir(parents=True, exist_ok=True)
 
     # 2. Create model save path
-    MODEL_NAME = "".join(["model_practice.pth"])
+    MODEL_NAME = "mp.pth"
     MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
 
     # 3. Save model state dict

@@ -2,6 +2,7 @@ import itertools  # Used to generate hyperparameter combinations
 import os
 import subprocess
 import sys
+import time
 from multiprocessing import Pool
 
 import psutil
@@ -26,7 +27,11 @@ def generate_hyperparam_combinations():
     # Get all possible combinations of hyperparameters
     for combination in itertools.product(*values):
         # Convert to command-line format:
-        cmd_args = [f"--{key} {value}" for key, value in zip(keys, combination)]
+        cmd_args = [
+            f"--{key} {value}"
+            for key, value in zip(keys, combination)
+            if value is not None
+        ]
         yield cmd_args
 
 
@@ -42,8 +47,9 @@ def run_script_with_params(params, mp=False):
             subprocess.Popen(command, stdout=log, stderr=log)
         else:
             print(f"Running command: {command}")
+            start = time.time()
             subprocess.run(command, stdout=log, stderr=log)
-            print(f"Command finished: {command}")
+            print(f"Command finished: {command} in {time.time() - start} seconds\n")
 
 
 def kill_existing_processes():

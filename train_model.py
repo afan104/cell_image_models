@@ -59,7 +59,7 @@ def parse_args():
 bs = 2
 num_workers = 1
 dataset_path = Path(f"{Path(os.getcwd())}/Data")
-epochs = 2
+epochs = 1
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float16
 
