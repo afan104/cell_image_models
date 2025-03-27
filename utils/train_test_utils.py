@@ -99,6 +99,12 @@ def train_one_epoch(model, dataloader, device, optimizer, scaler=None):
             loss_dict = model(inputs, targets)  # train loss format
             losses = sum(loss for loss in loss_dict.values())
 
+        # The forward function currently returns the loss from the base model
+        # which mean if the base model is frozen, the loss gradient will be zero and throw an error
+        # To fix this, we need to set the requires_grad attribute to True
+        if not losses.requires_grad:
+            losses.requires_grad = True
+
         # optimizer 0 grad
         optimizer.zero_grad()
 

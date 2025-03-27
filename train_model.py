@@ -114,7 +114,10 @@ if __name__ == "__main__":
         dtype=dtype,
     )
     # train/test loop
-    optimizer = get_optim(optimizer_info, model.parameters())
+    params_to_optimize = [
+        p for p in model.parameters() if p.requires_grad
+    ]  # skip frozen params otherwise the optimizer will throw an error
+    optimizer = get_optim(optimizer_info, params_to_optimize)
     loss_per_epoch = []  # = List[List[tensor]]
     maps_logger = {  # Dict[str: List[List[tensor]]]
         "segm_map_50": [],
