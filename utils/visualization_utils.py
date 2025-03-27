@@ -31,6 +31,7 @@ def visualize_pred(
     device,
     file_id="",
     test_img="",
+    folder="output",
 ):
     """
     Parameters -
@@ -160,7 +161,7 @@ def visualize_pred(
     plt.imshow(stacked_img)
     plt.axis("off")  # Hide axes
     plt.tight_layout()
-    plt.show()
+
     # summary print statements
     target_bboxes_text = ", ".join(
         [f"{label}: {bbox}" for label, bbox in zip(target_labels, target_bboxes)]
@@ -175,11 +176,19 @@ def visualize_pred(
     print(f"Target BBoxes: {target_bboxes_text}")
     print(f"Predicted BBoxes: {pred_bboxes_text}")
     print(f"Confidence Scores: {confidence_scores}")
-    # plt.savefig(f"output/{file_id}_annotated.png", dpi=300)
+    plt.savefig(f"{folder}/{file_id}_annotated.png", dpi=300)
 
 
 def visualize_multi(
-    model, annotation_df, img_dict, int_colors, class_names, device, file_ids=[], n=None
+    model,
+    annotation_df,
+    img_dict,
+    int_colors,
+    class_names,
+    device,
+    file_ids=[],
+    n=None,
+    folder="output",
 ):
     """
     Visualizes the prediction for n images or a list of files
@@ -195,6 +204,7 @@ def visualize_multi(
         class_names=class_names,
         device=device,
         file_id="fz_173_t0_Nstarve_1",
+        folder=folder,
     )
     if len(file_ids) != 0:
         for file_id in file_ids:
@@ -206,6 +216,7 @@ def visualize_multi(
                 class_names=class_names,
                 device=device,
                 file_id=file_id,
+                folder=folder,
             )
     elif n is not None:
         for i in range(n - 1):
@@ -217,6 +228,7 @@ def visualize_multi(
                 class_names=class_names,
                 device=device,
                 file_id="",
+                folder=folder,
             )
     else:
         print("please input value for either 'file_ids' or 'n'")
@@ -273,7 +285,6 @@ def visualize_losses(data, file_name):
     # Adjust layout and save as image
     plt.tight_layout()
     plt.savefig(file_name, dpi=300)  # High-resolution image
-    # plt.show()
 
 
 def visualize_maps(maps, file_name):
@@ -411,4 +422,3 @@ def visualize_maps(maps, file_name):
 
     plt.tight_layout
     plt.savefig(file_name, dpi=300)  # High-resolution image()
-    # plt.show()

@@ -4,9 +4,10 @@ import random
 from pathlib import Path
 
 import torch
+from tqdm import tqdm
 
-from utils.dataset_manipulation import DATA_AUG_HPS, create_dataloaders, load_data
-from utils.model_classes import PREPROC_HPS, build_preproc_model, get_model
+from utils.dataset_manipulation import create_dataloaders, load_data, train_tfms2
+from utils.model_classes import get_model
 from utils.train_test_utils import (
     OPS_HPS,
     get_optim,
@@ -38,12 +39,6 @@ def parse_args():
         "--freeze", type=bool, required=True, help="Freeze base model parameters"
     )
     parser.add_argument(
-        "--preprocess",
-        type=str,
-        required=True,
-    )
-    parser.add_argument("--data_augmentation", type=str, required=True)
-    parser.add_argument(
         "--optimizer",
         type=str,
         required=True,
@@ -72,18 +67,18 @@ if __name__ == "__main__":
     # hyperparameters/adjustables
     args = parse_args()
     optimizer_info = OPS_HPS[args.optimizer]
-    data_augmentation = DATA_AUG_HPS[args.data_augmentation]
     freeze = args.freeze
 
     # set seed
     seed = 1234
     random.seed(seed)
 
-    # get data
+    # Get Data
     img_dict, annotation_df, shapes_df, class_names, int_colors = load_data(
         dataset_path=dataset_path
     )
 
+    # Use the contrast adjustment type if specified
     if args.contraster_type:
         script_dir = os.path.dirname(__file__)
         preprocess_img_dir = os.path.join(
@@ -103,7 +98,7 @@ if __name__ == "__main__":
         dtype=dtype,
         bs=bs,
         num_workers=num_workers,
-        train_tfms=data_augmentation,
+        train_tfms=train_tfms2,
     )
 
     # load model
@@ -113,7 +108,6 @@ if __name__ == "__main__":
         device=device,
         base_model_path=base_model_path,
         freeze_params=False,
-        preprocess_model=args.preprocess,
         dtype=dtype,
     )
     # train/test loop
@@ -127,7 +121,7 @@ if __name__ == "__main__":
         "kog1_bbox_map": [],
         "normal_bbox_map": [],
     }
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs), desc="Epochs"):
         loss_per_epoch.append(
             train_one_epoch(
                 model=model,
@@ -142,7 +136,6 @@ if __name__ == "__main__":
             device=device,
             maps_logger=maps_logger,
         )
-        print("done with epoch")
 
     # save model
     save_model(model=model)
@@ -152,8 +145,9 @@ if __name__ == "__main__":
     print(f"maps: {maps_logger}")
 
     # visualization
-    weight_decay_bool = "weight_decay" in optimizer_info.keys()
-    version = f"optimizer_{args.optimizer}_freeze_{freeze}_constraster_{args.contraster_type}_data_augmentation_{args.data_augmentation}_"
+
+    args = {k: v for k, v in args._get_kwargs()}
+    version = "_".join([f"{k}_{v}" for k, v in args.items()])
     # make directory if not exists
     if not os.path.exists(f"output/{version}"):
         os.makedirs(f"output/{version}")
@@ -166,7 +160,14 @@ if __name__ == "__main__":
 
     # visualize
     visualize_multi(
-        model, annotation_df, img_dict, int_colors, class_names, device, n=3
+        model,
+        annotation_df,
+        img_dict,
+        int_colors,
+        class_names,
+        device,
+        n=3,
+        folder=f"output/{version}",
     )
 
     print("Done")

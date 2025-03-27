@@ -28,29 +28,16 @@ Classes in this file:
 - KoggClassifier: Dataset class that transforms my image+mask data into a custom dataset
 """
 
+
 # Transforms for data aug
-data_aug_tfms1 = transforms.Compose(
+data_aug_tfms2 = transforms.Compose(
     transforms=[
-        # transforms.RandomIoUCrop(
-        #     min_scale=0.3,
-        #     max_scale=1.0,
-        #     min_aspect_ratio=0.5,
-        #     max_aspect_ratio=2.0,
-        #     sampler_options=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-        #     trials=400,
-        # ),
-        transforms.ColorJitter(
-            brightness=(0.875, 1.125),
-            contrast=(0.5, 1.5),
-            saturation=(0.5, 1.5),
-            hue=(-0.05, 0.05),
-        ),
+        transforms.GaussianBlur(3, 0.5),
         transforms.RandomEqualize(),
         transforms.RandomPosterize(bits=3, p=0.5),
         transforms.RandomHorizontalFlip(p=0.5),
     ],
 )
-
 # Compose transforms to sanitize bounding boxes and normalize input data
 final_tfms = transforms.Compose(
     transforms=[
@@ -59,29 +46,6 @@ final_tfms = transforms.Compose(
         transforms.SanitizeBoundingBoxes(),
     ]
 )
-
-# Define the transformations for training and validation datasets
-train_tfms1 = transforms.Compose(
-    transforms=[data_aug_tfms1, final_tfms]  # valid_tfms is same as final_tfms
-)
-# Transforms for data aug
-data_aug_tfms2 = transforms.Compose(
-    transforms=[
-        # transforms.RandomIoUCrop(
-        #     min_scale=0.3,
-        #     max_scale=1.0,
-        #     min_aspect_ratio=0.5,
-        #     max_aspect_ratio=2.0,
-        #     sampler_options=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-        #     trials=400,
-        # ),
-        transforms.GaussianBlur(3, 0.5),
-        transforms.RandomEqualize(),
-        transforms.RandomPosterize(bits=3, p=0.5),
-        transforms.RandomHorizontalFlip(p=0.5),
-    ],
-)
-
 # Define the transformations for training and validation datasets
 train_tfms2 = transforms.Compose(
     transforms=[
@@ -90,8 +54,6 @@ train_tfms2 = transforms.Compose(
         # transforms.GaussianNoise(0, 0.01, True),
     ]  # valid_tfms is same as final_tfms
 )
-
-DATA_AUG_HPS = {"v0": train_tfms1, "v1": train_tfms2}
 
 
 # Define parameters for DataLoader

@@ -23,13 +23,6 @@ Classes in this File:
 """
 
 # Preprocessing hyperparameters
-LIGHT_MODEL_PARAMS = {
-    "hidden_units": 16,
-    "kernel_size": 1,
-    "padding": 0,
-    "num_interm_blocks": 0,
-    "max_pool": False,
-}
 HEAVY_MODEL_PARAMS = {
     "hidden_units": 128,
     "kernel_size": 1,
@@ -38,7 +31,6 @@ HEAVY_MODEL_PARAMS = {
     "max_pool": True,
     "mp_size": 3,
 }
-PREPROC_HPS = {"v0": LIGHT_MODEL_PARAMS, "v1": HEAVY_MODEL_PARAMS}
 
 
 # build preprocessing model
@@ -67,7 +59,6 @@ def get_model(
     device,
     base_model_path=None,
     freeze_params=False,
-    preprocess_model="v1",
     dtype=torch.float16,
 ):
     # Initialize pretrained model weights
@@ -100,19 +91,14 @@ def get_model(
         )
     base_model.to(device=device, dtype=dtype)
     if freeze_params:
-        if preprocess_model is None:
-            print("Error: Cannot freeze model if there is no preprocessing")
-            sys.exit(1)
         for p in base_model.parameters():
             p.requires_grad = False
-    if preprocess_model is not None:
-        kwargs = {**PREPROC_HPS[preprocess_model], "device": device, "dtype": dtype}
-        return CompositeModel(
-            base_model=base_model,
-            preprocess_model=build_preproc_model(**kwargs),
-        )
-    else:
-        return base_model
+
+    kwargs = {**HEAVY_MODEL_PARAMS, "device": device, "dtype": dtype}
+    return CompositeModel(
+        base_model=base_model,
+        preprocess_model=build_preproc_model(**kwargs),
+    )
 
 
 class AdaptiveContrastPreprocessing(nn.Module):
@@ -205,11 +191,10 @@ class AdaptiveContrastPreprocessing(nn.Module):
 
 # Add to nn block
 class CompositeModel(nn.Module):
-    def __init__(self, preprocess_model, base_model, train_tfms=None):
+    def __init__(self, preprocess_model, base_model):
         super().__init__()
         self.preprocess = preprocess_model
         self.base_model = base_model
-        self.train_tfms = train_tfms
 
     def forward(self, input, targets=None):
         # preprocess portion

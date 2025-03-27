@@ -78,7 +78,9 @@ def train_one_epoch(model, dataloader, device, optimizer, scaler=None):
     model.train()
 
     # loop over data
-    for _, (inputs, targets) in tqdm(enumerate(dataloader), total=len(dataloader)):
+    for _, (inputs, targets) in tqdm(
+        enumerate(dataloader), total=len(dataloader), desc="Training"
+    ):
         inputs = torch.stack(inputs).to(device)
         targets = [
             {
@@ -140,7 +142,7 @@ def test_one_epoch(model, dataloader, device, maps_logger):
     # loop over data
     with torch.inference_mode():
         for _, (inputs_raw, targets) in tqdm(
-            enumerate(dataloader), total=len(dataloader)
+            enumerate(dataloader), total=len(dataloader), desc="Testing"
         ):
             inputs = torch.stack(inputs_raw).to(device)
             targets = [
