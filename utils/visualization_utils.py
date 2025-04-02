@@ -224,7 +224,7 @@ def visualize_multi(
         test_dir = os.path.join(current_dir, "..", "Data", "test")
         all_test_files = os.listdir(test_dir)
         all_test_ids = [file.split(".")[0] for file in all_test_files]
-        random_test_ids = random.sample(all_test_ids, n - 1)
+        random_test_ids = random.sample(all_test_ids, n)
 
         for file_id in random_test_ids:
             visualize_pred(
@@ -242,7 +242,6 @@ def visualize_multi(
 
 
 def visualize_losses(data, file_name):
-    data = np.array([[x.detach().cpu().numpy() for x in l] for l in data])
     time_steps = np.arange(data.shape[1])  # Time steps (x-axis)
 
     # Compute averages for each time step
@@ -295,22 +294,9 @@ def visualize_losses(data, file_name):
 
 
 def visualize_maps(maps, file_name):
-    # Convert tensors to numpy without gradients
-    def to_numpy(tensor):
-        return (
-            tensor.detach().cpu().numpy()
-            if hasattr(tensor, "detach")
-            else np.array(tensor)
-        )
 
-    # Convert all values in the dictionary
-    maps = {
-        key: [[to_numpy(tensor) for tensor in lst] for lst in lst_lst]
-        for key, lst_lst in maps.items()
-    }
-
-    epochs = len(maps["segm_map_50"])  # Number of epochs
-    steps_per_epoch = len(maps["segm_map_50"][0])  # Number of steps per epoch
+    epochs = maps["segm_map_50"].shape[0]  # Number of epochs
+    steps_per_epoch = maps["segm_map_50"].shape[1]  # Number of steps per epoch
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
@@ -360,7 +346,7 @@ def visualize_maps(maps, file_name):
         label=f"normal MAP",
     )
 
-    axes[1].set_title("Kog1 vs Normal MA")
+    axes[1].set_title("Kog1 vs Normal MAP")
     axes[1].set_xlabel("Epochs")
     axes[1].set_ylabel("MAP")
     axes[1].legend()
@@ -378,9 +364,9 @@ def visualize_maps(maps, file_name):
             marker="s",
             linestyle="--",
             color=colors2[i],
-            label=f"Epoch {i} - mean bbox",
+            label=f"Epoch {i}",
         )
-    axes[2].set_title("MAP per Batch")
+    axes[2].set_title("BBOX MAP per Batch")
     axes[2].set_xlabel("Steps")
     axes[2].set_ylabel("MAP")
     axes[2].legend()

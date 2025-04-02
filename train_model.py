@@ -63,7 +63,7 @@ def parse_args():
 bs = 2
 num_workers = 1
 dataset_path = Path(f"{Path(os.getcwd())}/Data")
-epochs = 30
+epochs = 2
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float16
 
@@ -143,9 +143,6 @@ if __name__ == "__main__":
             maps_logger=maps_logger,
         )
 
-    # save model
-    # save_model(model=model)
-
     # check all values
     print(f"all losses: {loss_per_epoch}")
     print(f"maps: {maps_logger}")
@@ -160,6 +157,8 @@ if __name__ == "__main__":
         print(f"Creating directory: output/{version}")
         os.makedirs(f"output/{version}")
 
+    # save model
+    save_model(model=model, save_path=f"save_models/{version}.pth")
     # losses
     visualize_losses(loss_per_epoch, f"output/{version}/losses.png")
 

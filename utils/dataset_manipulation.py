@@ -72,8 +72,8 @@ def get_dataloader_params(device, bs, num_workers):
         "num_workers": num_workers,
         "persistent_workers": True,
         "pin_memory": "cuda" in device,
-        "pin_memory_device": (device if "cuda" in device else ""),
         "collate_fn": collate_fn,
+        "persistent_workers": True,
     }
 
 
@@ -127,7 +127,6 @@ def create_dataloaders(
     bs,
     num_workers,
     train_tfms=None,
-    dtype=torch.float16,
 ):
     class_to_idx = {c: i for i, c in enumerate(class_names)}
     # get test files from test directory
@@ -146,7 +145,6 @@ def create_dataloaders(
         img_dict=img_dict,
         class_to_idx=class_to_idx,
         transforms=train_tfms if train_tfms is not None else final_tfms,
-        dtype=dtype,
     )
     valid_dataset = KoggClassifier(
         img_keys=files_test,
@@ -154,17 +152,12 @@ def create_dataloaders(
         img_dict=img_dict,
         class_to_idx=class_to_idx,
         transforms=final_tfms,
-        dtype=dtype,
     )
 
     dataloader_params = get_dataloader_params(
         device=device, bs=bs, num_workers=num_workers
     )
-    train_dataloader = DataLoader(
-        train_dataset,
-        **dataloader_params,
-        shuffle=True,
-    )
+    train_dataloader = DataLoader(train_dataset, **dataloader_params, shuffle=True)
     valid_dataloader = DataLoader(
         valid_dataset,
         **dataloader_params,
@@ -222,7 +215,6 @@ class KoggClassifier(Dataset):
         img_dict,
         class_to_idx,
         transforms=None,
-        dtype=torch.float16,
     ):
         """
         Parameters:
@@ -239,7 +231,6 @@ class KoggClassifier(Dataset):
         self.img_dict = img_dict
         self.class_to_idx = class_to_idx
         self.transforms = transforms
-        self.dtype = dtype
 
     def __len__(self):
         """
@@ -256,7 +247,7 @@ class KoggClassifier(Dataset):
         image, target = self.load_image_and_target(annotation)
         image, target = self.transforms(image, target)
 
-        return image.to(self.dtype), target
+        return image, target
 
     def load_image_and_target(self, annotation):
         """

@@ -236,15 +236,7 @@ def test_one_epoch(model, dataloader, device, maps_logger):
         return maps_logger
 
 
-def save_model(model):
-    # 1. Create models directory
-    MODEL_PATH = Path("save_models")
-    MODEL_PATH.mkdir(parents=True, exist_ok=True)
-
-    # 2. Create model save path
-    MODEL_NAME = "mp.pth"
-    MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
-
+def save_model(model, save_path):
     # 3. Save model state dict
-    print(f"Saving model to: {MODEL_SAVE_PATH}")
-    torch.save(obj=model.state_dict(), f=MODEL_SAVE_PATH)
+    print(f"Saving model to: {save_path}")
+    torch.save(obj=model.state_dict(), f=save_path)
