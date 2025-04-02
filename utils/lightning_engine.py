@@ -1,3 +1,5 @@
+import gc
+
 import lightning as L
 import numpy as np
 import torch
@@ -111,6 +113,10 @@ class LightningMaskRCNNModel(L.LightningModule):
         self.log(TRAIN_LOSS, train_loss, prog_bar=True, batch_size=len(batch))
         self.loss = train_loss.item()
 
+        del x, y, train_loss_dict
+        gc.collect()
+        torch.cuda.empty_cache()
+
         return train_loss
 
     def validation_step(self, batch, batch_idx):
@@ -139,6 +145,10 @@ class LightningMaskRCNNModel(L.LightningModule):
             prog_bar=True,
             batch_size=len(batch),
         )
+
+        del x, y, pred
+        gc.collect()
+        torch.cuda.empty_cache()
 
         return self.maps[BBOX_MAP_50]
 

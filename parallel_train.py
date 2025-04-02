@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import psutil
 
 # Global settings
-TARGET_SCRIPT = os.path.join(os.path.dirname(__file__), "train_model.py")
+TARGET_SCRIPT = os.path.join(os.path.dirname(__file__), "lightning_train.py")
 LOGS_DIR = "logs"
 N = 1
 USE_MP = False
@@ -47,7 +47,9 @@ def run_script_with_params(params, mp=False):
             print(f"Running command: {command}")
             start = time.time()
             subprocess.run(command, stdout=log, stderr=log)
-            print(f"Command finished: {command} in {time.time() - start} seconds\n")
+            print(
+                f"Command finished: {command} in {int(time.time() - start)} seconds\n"
+            )
 
 
 def kill_existing_processes():
@@ -80,6 +82,8 @@ def main():
     else:
         for params in param_combinations:
             run_script_with_params(" ".join(params))
+            # Sleep to avoid overwhelming the system
+            time.sleep(60)
         print("All processes started.")
 
 

@@ -72,6 +72,7 @@ def get_dataloader_params(device, bs, num_workers):
         "num_workers": num_workers,
         "persistent_workers": True,
         "pin_memory": "cuda" in device,
+        "pin_memory_device": device,
         "collate_fn": collate_fn,
         "persistent_workers": True,
     }

@@ -19,7 +19,7 @@ PREPROCESS_FOLDER_NAMES = {
 BATCH_SIZE = 2
 NUM_WORKERS = 2
 DATA_PATH = Path(f"{Path(os.getcwd())}/Data")
-EPOCHS = 1
+EPOCHS = 5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BASE_MODEL_PATH = "save_models/model_2025-03-13_06-24-45.pth"
 
@@ -80,6 +80,24 @@ def get_data(dataset_path, args):
     return img_dict, annotation_df, shapes_df, class_names, int_colors
 
 
+def find_last_ckpt(version):
+    base_dir = f"output/{version}/lightning_logs"
+    if os.path.exists(base_dir):
+        # Get latest version
+        version_before_current = sorted(os.listdir(base_dir))[-1]
+        ckpt_dir = os.path.join(base_dir, version_before_current, "checkpoints")
+
+        # Get latest checkpoint
+        all_files = os.listdir(ckpt_dir)
+        latest_ckpt = sorted(
+            [f for f in all_files if os.path.isfile(os.path.join(ckpt_dir, f))]
+        )[-1]
+        latest_ckpt = os.path.join(ckpt_dir, latest_ckpt)
+        print(f"Loading checkpoint: {latest_ckpt}")
+        return latest_ckpt
+    return None
+
+
 if __name__ == "__main__":
     # hyperparameters/adjustables
     args = parse_args()
@@ -129,6 +147,7 @@ if __name__ == "__main__":
         accelerator=DEVICE,
         log_every_n_steps=5,
         num_sanity_val_steps=0,
+        default_root_dir=f"output/{version}",
     )
 
     lit_model = None
@@ -146,10 +165,13 @@ if __name__ == "__main__":
 
         lit_model = LightningMaskRCNNModel(model, optimizer)
 
+    latest_ckpt = find_last_ckpt(version)
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "caching_allocator"
     trainer.fit(
         model=lit_model,
         train_dataloaders=train_dataloader,
         val_dataloaders=valid_dataloader,
+        ckpt_path=latest_ckpt,
     )
 
     save_model(model=lit_model.model, save_path=f"save_models/{version}_final.pth")
