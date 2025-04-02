@@ -63,7 +63,10 @@ def process_image(img_path):
 if __name__ == "__main__":
     repo_dir = Path(__file__).resolve().parent.parent
     img_dir = repo_dir / "Data"
-    images = [img_path for img_path in img_dir.glob("fz*.png")]
+    test_dir = img_dir / "test"
+    images = [img_path for img_path in img_dir.glob("fz*.png")] + [
+        img_path for img_path in test_dir.glob("fz*.png")
+    ]
 
     num_workers = min(cpu_count(), 4)
     with Pool(num_workers) as pool:

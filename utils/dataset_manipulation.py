@@ -1,8 +1,11 @@
+import json
+import os
 import re
+import shutil
+from pathlib import Path
 
 import distinctipy
 import pandas as pd
-import sklearn.model_selection as skm
 import torch
 import torchvision
 import torchvision.transforms.v2 as transforms
@@ -23,6 +26,8 @@ Functions in this file:
 - get_dataloader_params: returns the dataloader parameters as a dictionary
 - load_data: loads data from directory into variables
 - create_dataloaders: creates a custom dataset with transforms, then converts it into a dataloader
+- move_file: moves a file from one directory to another
+- move_test_data: moves test images/jsons into a test folder
 
 Classes in this file:
 - KoggClassifier: Dataset class that transforms my image+mask data into a custom dataset
@@ -74,12 +79,19 @@ def get_dataloader_params(device, bs, num_workers):
 
 # load data
 def load_data(dataset_path):
+    # access test directory
+    test_dir = Path(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/test"))
+    )
+
     # Get a list of image files in the dataset
-    img_file_paths = list(dataset_path.glob("*.png"))
+    img_file_paths = list(dataset_path.glob("*.png")) + list(test_dir.glob("*.png"))
     img_dict = {file.stem: file for file in img_file_paths}
 
     # create generator of json dataframes
-    annotation_file_paths = list(dataset_path.glob("fz*.json"))
+    annotation_file_paths = list(dataset_path.glob("fz*.json")) + list(
+        test_dir.glob("fz*.json")
+    )
     mask_dataframes = (
         pd.read_json(f, orient="index").transpose() for f in annotation_file_paths
     )
@@ -118,10 +130,14 @@ def create_dataloaders(
     dtype=torch.float16,
 ):
     class_to_idx = {c: i for i, c in enumerate(class_names)}
-    file_IDs = list(img_dict.keys())
-    files_train, files_test = skm.train_test_split(
-        file_IDs, train_size=0.8, test_size=0.2
-    )
+    # get test files from test directory
+    test_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/test"))
+    files_test = [f.split(".")[0] for f in os.listdir(test_dir) if f.endswith(".png")]
+    # get train files from dataset directory
+    dataset_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data"))
+    files_train = [
+        f.split(".")[0] for f in os.listdir(dataset_dir) if f.endswith(".png")
+    ]
 
     # transforms in dataset
     train_dataset = KoggClassifier(
@@ -156,6 +172,46 @@ def create_dataloaders(
     )
 
     return train_dataloader, valid_dataloader
+
+
+# Function to move a file
+def move_file(src, dest):
+    if os.path.exists(src):
+        shutil.move(src, dest)
+        print(f"Moved: {src} to {dest}")
+    else:
+        print(f"File not found: {src}")
+
+
+# Function that moves test data into test folder
+def move_test_data():
+    # Define paths
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data"))
+    json_path = os.path.join(base_dir, "annotation_tracker.json")
+    test_dir = os.path.join(base_dir, "test")
+
+    # Create test directory if it doesn't exist
+    os.makedirs(test_dir, exist_ok=True)
+
+    # Load JSON data
+    print(f"Loading JSON data from {json_path}")
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Get list of test filenames
+    test_names = data.get("test", [])
+
+    # Move test images and json files
+    for test_name in test_names:
+        # Construct full source and destination paths for both .png and .json
+        src_png_path = os.path.join(base_dir, f"{test_name}.png")
+        dest_png_path = os.path.join(test_dir, f"{test_name}.png")
+        src_json_path = os.path.join(base_dir, f"{test_name}.json")
+        dest_json_path = os.path.join(test_dir, f"{test_name}.json")
+
+        # Move .png and .json files
+        move_file(src_png_path, dest_png_path)
+        move_file(src_json_path, dest_json_path)
 
 
 class KoggClassifier(Dataset):
@@ -217,9 +273,16 @@ class KoggClassifier(Dataset):
         image = Image.open(filepath).convert("RGB")
 
         # convert labels to indices
-        labels = torch.Tensor(
-            [self.class_to_idx[shape["label"]] for shape in annotation["shapes"]]
-        ).to(dtype=torch.int64)
+        try:
+            labels = torch.Tensor(
+                [self.class_to_idx[shape["label"]] for shape in annotation["shapes"]]
+            ).to(dtype=torch.int64)
+        except KeyError:
+            # show which file_id it is
+            print(f"KeyError: {annotation.name}")
+            raise KeyError(
+                f"KeyError: {annotation.name} - Check if the class names are consistent."
+            )
 
         # get masks
         shape_points = [shape["points"] for shape in annotation["shapes"]]

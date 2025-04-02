@@ -115,11 +115,11 @@ def train_one_epoch(model, dataloader, device, optimizer, scaler=None):
             losses.backward()
             optimizer.step()
 
-        loss_logger.append(losses)
+        loss_logger.append(losses.clone().detach().cpu())
         tqdm.write(f"training losses: {losses}")
         del inputs, targets, loss_dict
-        torch.cuda.empty_cache()
         gc.collect()
+        torch.cuda.empty_cache()
     return loss_logger
 
 
@@ -147,10 +147,10 @@ def test_one_epoch(model, dataloader, device, maps_logger):
 
     # loop over data
     with torch.inference_mode():
-        for _, (inputs_raw, targets) in tqdm(
+        for _, (inputs, targets) in tqdm(
             enumerate(dataloader), total=len(dataloader), desc="Testing"
         ):
-            inputs = torch.stack(inputs_raw).to(device)
+            inputs = torch.stack(inputs).to(device)
             targets = [
                 {
                     k: v.to(device) if isinstance(v, torch.Tensor) else v
@@ -170,14 +170,37 @@ def test_one_epoch(model, dataloader, device, maps_logger):
             bbox_map_50, segm_map_50, bbox_map_per_class, segm_map_per_class = get_map(
                 maskrcnn_map=maskrcnn_map, model_output=pred, target_dict=targets
             )
+            # move to cpu
+            bbox_map_50 = bbox_map_50.cpu()
+            segm_map_50 = segm_map_50.cpu()
+            bbox_map_per_class = bbox_map_per_class.cpu()
+            segm_map_per_class = segm_map_per_class.cpu()
 
             maps_logger_per_epoch["bbox_map_50"].append(bbox_map_50)
             maps_logger_per_epoch["segm_map_50"].append(segm_map_50)
 
-            # map per class: when there are no kogg class values, impute the previous mAP for continuity
+            # map per class: when there are no kogg class values (None of -1), impute the previous mAP for continuity or 0 if first epoch
             if segm_map_per_class.ndim != 0:
+                if segm_map_per_class[0] == -1:  # when map present and is -1
+                    segm_map_per_class[0] = (
+                        maps_logger_per_epoch["kog1_segm_map"][-1]
+                        if len(maps_logger_per_epoch["kog1_segm_map"]) > 0
+                        else 0
+                    )  # impute previous value or 0
+                if bbox_map_per_class[0] == -1:
+                    bbox_map_per_class[0] = (
+                        maps_logger_per_epoch["kog1_bbox_map"][-1]
+                        if len(maps_logger_per_epoch["kog1_bbox_map"]) > 0
+                        else 0
+                    )  # repeat for bbox map
                 maps_logger_per_epoch["normal_segm_map"].append(segm_map_per_class[1])
-                maps_logger_per_epoch["normal_bbox_map"].append(bbox_map_per_class[1])
+                (
+                    maps_logger_per_epoch["normal_bbox_map"].append(
+                        bbox_map_per_class[1]
+                    )
+                    if bbox_map_per_class[1] != -1
+                    else 0
+                )
                 maps_logger_per_epoch["kog1_segm_map"].append(segm_map_per_class[0])
                 maps_logger_per_epoch["kog1_bbox_map"].append(bbox_map_per_class[0])
             else:
@@ -193,6 +216,18 @@ def test_one_epoch(model, dataloader, device, maps_logger):
                     if len(maps_logger_per_epoch["kog1_bbox_map"]) > 0
                     else 0
                 )
+            # remove items from GPU memory
+            del (
+                inputs,
+                targets,
+                pred,
+                bbox_map_50,
+                segm_map_50,
+                bbox_map_per_class,
+                segm_map_per_class,
+            )
+            gc.collect()
+            torch.cuda.empty_cache()
 
         tqdm.write(f"test accuracy: {maps_logger_per_epoch.items()}")
         # Append per-epoch logs to the main logger

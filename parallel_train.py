@@ -13,8 +13,8 @@ LOGS_DIR = "logs"
 N = 1
 USE_MP = False
 HP_OPTIONS = {
-    "optimizer": ["v0", "v1", "v2"],
-    "freeze": [True, False],
+    "optimizer": ["v0", "v1"],
+    "freeze": [False],
     "contraster_type": ["manual", "pil", "torch", None],
 }
 

@@ -1,3 +1,4 @@
+import os
 import random
 from functools import partial
 
@@ -16,7 +17,7 @@ from utils.base_utils import create_polygon_mask, stack_imgs, tensor_to_pil
 """
 Functions in this File
 - visualize_pred: Performs forward pass on one image, saves result as an annotated png file
-- visualize_multi: Performs visualize_pred on multiple images (randomly or list of input files)
+- visualize_multi: Performs visualize_pred on multiple images (randomly from test or list of input files)
 - visualize_loss: Visualizes training losses as a png file
 - visualize_map: Visualizes test accuracies as a png file
 """
@@ -29,7 +30,7 @@ def visualize_pred(
     int_colors,
     class_names,
     device,
-    file_id="",
+    file_id,
     test_img="",
     folder="output",
 ):
@@ -37,11 +38,10 @@ def visualize_pred(
     Parameters -
     :model - pytorch model
     :img_dict - dict of name, path pairs
-    :file_id - string, if "" then random choice
+    :file_id - string
     :test_img - optional image object, default is the original file_id image
     """
     # grab image
-    file_id = file_id if file_id != "" else random.choice(list(img_dict.keys()))
     path = img_dict[file_id]
     test_img = test_img if test_img != "" else Image.open(path).convert("RGB")
 
@@ -219,7 +219,14 @@ def visualize_multi(
                 folder=folder,
             )
     elif n is not None:
-        for i in range(n - 1):
+        # randomly select n - 1 files from the test set
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        test_dir = os.path.join(current_dir, "..", "Data", "test")
+        all_test_files = os.listdir(test_dir)
+        all_test_ids = [file.split(".")[0] for file in all_test_files]
+        random_test_ids = random.sample(all_test_ids, n - 1)
+
+        for file_id in random_test_ids:
             visualize_pred(
                 model=model,
                 annotation_df=annotation_df,
@@ -227,7 +234,7 @@ def visualize_multi(
                 int_colors=int_colors,
                 class_names=class_names,
                 device=device,
-                file_id="",
+                file_id=file_id,
                 folder=folder,
             )
     else:
@@ -328,94 +335,52 @@ def visualize_maps(maps, file_name):
     axes[0].set_ylabel("MAP 50")
     axes[0].legend()
 
-    # ---- Plot 2: Class-Specific MAP Values ----
-    colors = [cm.viridis(i / (4)) for i in range(4)]
-    # kog1 segm
+    # ---- Plot 2: Kog1 v normal MAP Values ----
+    colors = [cm.viridis(i / (2)) for i in range(2)]
+    # kog1 mean
+    a = np.mean(maps["kog1_segm_map"], 1)
+    b = np.mean(maps["kog1_bbox_map"], 1)
     axes[1].plot(
         x_epochs,
-        np.mean(maps["kog1_segm_map"], 1),
+        np.mean([a, b], axis=0),
         marker="o",
         linestyle="-",
         color=colors[0],
-        label="Kog1 segm MAP",
+        label="kog1 MAP",
     )
-    # normal segm
+    # bbox mean
+    c = np.mean(maps["normal_segm_map"], 1)
+    d = np.mean(maps["normal_bbox_map"], 1)
     axes[1].plot(
         x_epochs,
-        np.mean(maps["normal_segm_map"], 1),
+        np.mean([c, d], axis=0),
         marker="s",
-        linestyle="--",
-        color=colors[1],
-        label=f"normal segm MAP",
-    )
-    # kog1 bbox
-    axes[1].plot(
-        x_epochs,
-        np.mean(maps["kog1_bbox_map"], 1),
-        marker="o",
         linestyle="-",
-        color=colors[2],
-        label=f"Kog1 bbox MAP",
-    )
-    # normal bbox
-    axes[1].plot(
-        x_epochs,
-        np.mean(maps["normal_bbox_map"], 1),
-        marker="s",
-        linestyle="--",
-        color=colors[3],
-        label=f"normal bbox MAP",
+        color=colors[1],
+        label=f"normal MAP",
     )
 
-    axes[1].set_title("MAP per Class")
+    axes[1].set_title("Kog1 vs Normal MA")
     axes[1].set_xlabel("Epochs")
     axes[1].set_ylabel("MAP")
     axes[1].legend()
 
     # ---- Plot 3: Batch MAP per Class ----
-    colors2 = [cm.viridis(i / (4 * epochs)) for i in range(4 * epochs)]
+    colors2 = [cm.viridis(i / (epochs)) for i in range(epochs)]
 
     for i in range(epochs):
-        # Plot class 0 segmentation MAP per batch
-        axes[2].plot(
-            np.arange(steps_per_epoch),
-            maps["kog1_segm_map"][i],
-            marker="o",
-            linestyle="-",
-            color=colors2[i * 4],
-            label=f"Epoch {i} - Kog1 Segm",
-        )
-
         # Plot class 0 bbox MAP per batch
+        a = maps["kog1_bbox_map"][i]
+        b = maps["normal_bbox_map"][i]
         axes[2].plot(
             np.arange(steps_per_epoch),
-            maps["kog1_bbox_map"][i],
+            np.mean([a, b], axis=0),
             marker="s",
             linestyle="--",
-            color=colors2[i * 4 + 1],
-            label=f"Epoch {i} - Kog1 BBox",
+            color=colors2[i],
+            label=f"Epoch {i} - mean bbox",
         )
-
-        # Plot class 1 segmentation MAP per batch
-        axes[2].plot(
-            np.arange(steps_per_epoch),
-            maps["normal_segm_map"][i],
-            marker="^",
-            linestyle="-",
-            color=colors2[i * 4 + 2],
-            label=f"Epoch {i} - Normal Segm",
-        )
-
-        # Plot class 1 bbox MAP per batch
-        axes[2].plot(
-            np.arange(steps_per_epoch),
-            maps["normal_bbox_map"][i],
-            marker="d",
-            linestyle="--",
-            color=colors2[i * 4 + 3],
-            label=f"Epoch {i} - Normal BBox",
-        )
-    axes[2].set_title("MAP per Batch per Class")
+    axes[2].set_title("MAP per Batch")
     axes[2].set_xlabel("Steps")
     axes[2].set_ylabel("MAP")
     axes[2].legend()

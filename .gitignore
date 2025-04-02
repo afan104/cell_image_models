@@ -1,11 +1,15 @@
 .DS_Store
 json2.js
-Data/fz*
-newdata/fz*
 KFOlCnqEu92Fr1MmEU9vAw.ttf
-save_models/m*
-output/*
-Data/**autocontrast
+save_models/
+output/
+
+# train data
+Data/fz* 
+# test data
+Data/test/fz*
+# autocontrast data
+Data/*/*png 
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
