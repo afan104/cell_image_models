@@ -13,9 +13,11 @@ LOGS_DIR = "logs"
 N = 1
 USE_MP = False
 HP_OPTIONS = {
-    "optimizer": ["v0", "v1"],
+    "optimizer": ["v1"],
     "freeze": [False],
-    "contraster_type": ["manual", "pil", "torch", None],
+    "contraster_type": ["torch", None],
+    "data_aug": [True, False],
+    "kernel_size": [1, 5],
 }
 
 
@@ -84,7 +86,7 @@ def main():
             run_script_with_params(" ".join(params))
             # Sleep to avoid overwhelming the system
             time.sleep(60)
-        print("All processes started.")
+        print("All processes finished.")
 
 
 if __name__ == "__main__":

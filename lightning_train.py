@@ -4,6 +4,7 @@ from pathlib import Path
 
 import lightning as L
 import torch
+from lightning.pytorch.callbacks import EarlyStopping
 
 from utils.dataset_manipulation import create_dataloaders, load_data, train_tfms2
 from utils.lightning_engine import LightningMaskRCNNModel, LossAndMapLogger
@@ -16,10 +17,11 @@ PREPROCESS_FOLDER_NAMES = {
     "torch": "torch_autocontrast",
     "pil": "pil_autocontrast",
 }
+
 BATCH_SIZE = 2
-NUM_WORKERS = 2
+NUM_WORKERS = 1
 DATA_PATH = Path(f"{Path(os.getcwd())}/Data")
-EPOCHS = 5
+EPOCHS = 100
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BASE_MODEL_PATH = "save_models/model_2025-03-13_06-24-45.pth"
 
@@ -55,6 +57,20 @@ def parse_args():
         help="""Type of contrast adjustment to apply to images. 
         Can be manual, pil, torch, None""",
     )
+    parser.add_argument(
+        "--data_aug",
+        type=bool,
+        required=False,
+        default=False,
+        help="""Whether to include the additional 160 augmented training images (rotate90 and mirror) during training.
+          Skip the flag to not exclude them.""",
+    )
+    parser.add_argument(
+        "--kernel_size",
+        type=int,
+        required=True,
+        help="""Kernel size for conv2d layers in the AdaptivePreprocessing module.""",
+    )
 
     return parser.parse_args()
 
@@ -63,7 +79,7 @@ def get_data(dataset_path, args):
 
     # Get Data
     img_dict, annotation_df, shapes_df, class_names, int_colors = load_data(
-        dataset_path=dataset_path
+        dataset_path=dataset_path, include_data_aug_paths=args.data_aug
     )
 
     # Use the contrast adjustment type if specified
@@ -98,10 +114,11 @@ def find_last_ckpt(version):
     return None
 
 
-if __name__ == "__main__":
-    # hyperparameters/adjustables
-    args = parse_args()
-    optimizer_info = OPS_HPS[args.optimizer]
+def setup_version(args, seed: int = 1234):
+    """Seed, set precision, and create directories."""
+    L.seed_everything(seed)
+    torch.set_float32_matmul_precision("high")
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "caching_allocator"
 
     # Versioning
     args_dict = {k: v for k, v in args._get_kwargs()}
@@ -113,43 +130,23 @@ if __name__ == "__main__":
         print(f"Creating directory: output/{version}")
         os.makedirs(f"output/{version}")
 
-    # lightning seed everything and set precision
-    L.seed_everything(1234)
-    torch.set_float32_matmul_precision("high")
+    return version
 
-    # get data
-    img_dict, annotation_df, shapes_df, class_names, int_colors = get_data(
-        dataset_path=DATA_PATH, args=args
-    )
 
-    # get dataloaders
-    train_dataloader, valid_dataloader = create_dataloaders(
-        img_dict=img_dict,
-        annotation_df=annotation_df,
-        class_names=class_names,
-        device=DEVICE,
-        bs=BATCH_SIZE,
-        num_workers=NUM_WORKERS,
-        train_tfms=train_tfms2,
-    )
-    # Callbacks
+def get_callbacks(train_dataloader, valid_dataloader, version):
     loss_and_maps_logger_callback = LossAndMapLogger(
         epochs=EPOCHS,
         train_dataloader_size=len(train_dataloader),
         val_dataloader_size=len(valid_dataloader),
+        version=version,
     )
-
-    # Lightning Trainer
-    trainer = L.Trainer(
-        max_epochs=EPOCHS,
-        logger=True,
-        callbacks=[loss_and_maps_logger_callback],
-        accelerator=DEVICE,
-        log_every_n_steps=5,
-        num_sanity_val_steps=0,
-        default_root_dir=f"output/{version}",
+    early_stop_callback = EarlyStopping(
+        monitor="bbox_map_50", min_delta=0.00, patience=5, verbose=False, mode="max"
     )
+    return [loss_and_maps_logger_callback, early_stop_callback]
 
+
+def build_model(class_names, args, optimizer_info):
     lit_model = None
     with trainer.init_module():
         # get model
@@ -158,24 +155,25 @@ if __name__ == "__main__":
             device=DEVICE,
             base_model_path=BASE_MODEL_PATH,
             freeze_params=args.freeze,
+            kernel_size=args.kernel_size,
         )
 
         params_to_optimize = [p for p in model.parameters() if p.requires_grad]
         optimizer = get_optim(optimizer_info, params_to_optimize)
 
         lit_model = LightningMaskRCNNModel(model, optimizer)
+    return lit_model
 
-    latest_ckpt = find_last_ckpt(version)
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "caching_allocator"
-    trainer.fit(
-        model=lit_model,
-        train_dataloaders=train_dataloader,
-        val_dataloaders=valid_dataloader,
-        ckpt_path=latest_ckpt,
-    )
 
-    save_model(model=lit_model.model, save_path=f"save_models/{version}_final.pth")
-
+def visualize(
+    loss_and_maps_logger_callback,
+    version,
+    img_dict,
+    annotation_df,
+    int_colors,
+    class_names,
+    multi_example_count=3,
+):
     # losses
     visualize_losses(
         data=loss_and_maps_logger_callback.loss_logger,
@@ -184,8 +182,12 @@ if __name__ == "__main__":
 
     # maps
     visualize_maps(
-        maps=loss_and_maps_logger_callback.maps_logger,
-        file_name=f"output/{version}/maps.png",
+        maps=loss_and_maps_logger_callback.maps_logger_train,
+        file_name=f"output/{version}/maps_train.png",
+    )
+    visualize_maps(
+        maps=loss_and_maps_logger_callback.maps_logger_val,
+        file_name=f"output/{version}/maps_val.png",
     )
 
     # visualize
@@ -196,8 +198,74 @@ if __name__ == "__main__":
         int_colors,
         class_names,
         DEVICE,
-        n=3,
+        n=multi_example_count,
         folder=f"output/{version}",
+    )
+
+
+if __name__ == "__main__":
+    # hyperparameters/adjustables
+    args = parse_args()
+    optimizer_info = OPS_HPS[args.optimizer]
+    version = setup_version(args=args)
+
+    # Get data
+    img_dict, annotation_df, shapes_df, class_names, int_colors = get_data(
+        dataset_path=DATA_PATH, args=args
+    )
+
+    # Get dataloaders
+    train_dataloader, valid_dataloader, test_dataloader = create_dataloaders(
+        img_dict=img_dict,
+        annotation_df=annotation_df,
+        class_names=class_names,
+        device=DEVICE,
+        bs=BATCH_SIZE,
+        num_workers=NUM_WORKERS,
+        train_tfms=train_tfms2,
+    )
+
+    # Get Callbacks
+    callbacks = get_callbacks(
+        train_dataloader=train_dataloader,
+        valid_dataloader=valid_dataloader,
+        version=version,
+    )
+
+    # Lightning Trainer
+    trainer = L.Trainer(
+        max_epochs=EPOCHS,
+        logger=True,
+        callbacks=callbacks,
+        accelerator=DEVICE,
+        log_every_n_steps=5,
+        num_sanity_val_steps=0,
+        default_root_dir=f"output/{version}",
+    )
+
+    lit_model = build_model(
+        class_names=class_names, args=args, optimizer_info=optimizer_info
+    )
+    latest_ckpt = find_last_ckpt(version)
+
+    trainer.fit(
+        model=lit_model,
+        train_dataloaders=train_dataloader,
+        val_dataloaders=valid_dataloader,
+        ckpt_path=latest_ckpt,
+    )
+
+    save_model(model=lit_model.model, save_path=f"save_models/{version}_final.pth")
+
+    # visualize
+    visualize(
+        loss_and_maps_logger_callback=callbacks[0],
+        version=version,
+        img_dict=img_dict,
+        annotation_df=annotation_df,
+        int_colors=int_colors,
+        class_names=class_names,
+        multi_example_count=3,
     )
 
     print("Done")

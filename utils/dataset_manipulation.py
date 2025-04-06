@@ -30,7 +30,7 @@ Functions in this file:
 - move_test_data: moves test images/jsons into a test folder
 
 Classes in this file:
-- KoggClassifier: Dataset class that transforms my image+mask data into a custom dataset
+- Kog1Classifier: Dataset class that transforms my image+mask data into a custom dataset
 """
 
 
@@ -78,41 +78,77 @@ def get_dataloader_params(device, bs, num_workers):
     }
 
 
-# load data
-def load_data(dataset_path):
-    # access test directory
+# Load dataset images and annotations
+def load_data(dataset_path, include_data_aug_paths=False):
+    # Define path to test directory
     test_dir = Path(
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/test"))
     )
 
-    # Get a list of image files in the dataset
+    # Collect all image file paths from main dataset and test directory
     img_file_paths = list(dataset_path.glob("*.png")) + list(test_dir.glob("*.png"))
+
+    # Optionally include data augmentation images
+    if include_data_aug_paths:
+        data_aug_dirs = [
+            Path(
+                os.path.abspath(
+                    os.path.join(os.path.dirname(__file__), "../Data/Data_aug/mirror")
+                )
+            ),
+            Path(
+                os.path.abspath(
+                    os.path.join(os.path.dirname(__file__), "../Data/Data_aug/rotate90")
+                )
+            ),
+        ]
+
+        for aug_dir in data_aug_dirs:
+            aug_images = list(aug_dir.glob("*.png"))
+            img_file_paths += aug_images
+
+        # Validate that each augmentation folder has exactly 80 images
+        assert (
+            len(list(data_aug_dirs[0].glob("*.png"))) == 80
+        ), f"Expected 80 images in {data_aug_dirs[0]}"
+        assert (
+            len(list(data_aug_dirs[1].glob("*.png"))) == 80
+        ), f"Expected 80 images in {data_aug_dirs[1]}"
+
+    # Map image filenames (without extensions) to their full file paths
     img_dict = {file.stem: file for file in img_file_paths}
 
-    # create generator of json dataframes
+    # Collect all annotation file paths (JSON) from dataset and test directory
     annotation_file_paths = list(dataset_path.glob("fz*.json")) + list(
         test_dir.glob("fz*.json")
     )
+
+    # Optionally include annotation files from data augmentation directories
+    if include_data_aug_paths:
+        for aug_dir in data_aug_dirs:
+            annotation_file_paths += list(aug_dir.glob("*.json"))
+
+    # Load and combine annotation JSON files into a single dataframe
     mask_dataframes = (
         pd.read_json(f, orient="index").transpose() for f in annotation_file_paths
     )
-
-    # concatenate into single dataframe with filename indices
     annotation_df = pd.concat(mask_dataframes, ignore_index=False)
-    annotation_df["index"] = annotation_df.apply(
-        lambda row: re.split(r"[./]", row["imageName"])[-2], axis=1
-    )  # axis 1 applies on rows, re.split splits on both . and / characters
+
+    # Extract index from imageName for proper alignment with img_dict
+    annotation_df["index"] = annotation_df["imageName"].apply(
+        lambda name: re.split(r"[./]", name)[-2]
+    )
     annotation_df = annotation_df.set_index("index")
     annotation_df = annotation_df.loc[list(img_dict.keys())]
 
-    # apply to shapes column to convert to series (separate column)
+    # Convert 'shapes' column into a separate dataframe
     shapes_df = annotation_df["shapes"].explode().to_frame()
     shapes_df = shapes_df["shapes"].apply(pd.Series)
 
-    # hard-code class_names to be in the right order since my pretrained model requires a consistent order
-    class_names = ["background", "kogg", "normal"]
+    # Manually define class names to ensure consistent ordering
+    class_names = ["background", "kog1", "normal"]
 
-    # Generate colormap
+    # Generate a colormap for the classes
     colors = distinctipy.get_colors(len(class_names))
     int_colors = [tuple(int(c * 255) for c in color) for color in colors]
 
@@ -133,6 +169,11 @@ def create_dataloaders(
     # get test files from test directory
     test_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/test"))
     files_test = [f.split(".")[0] for f in os.listdir(test_dir) if f.endswith(".png")]
+
+    # get val files from test directory
+    val_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/val"))
+    files_val = [f.split(".")[0] for f in os.listdir(val_dir) if f.endswith(".png")]
+
     # get train files from dataset directory
     dataset_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data"))
     files_train = [
@@ -140,14 +181,21 @@ def create_dataloaders(
     ]
 
     # transforms in dataset
-    train_dataset = KoggClassifier(
+    train_dataset = Kog1Classifier(
         img_keys=files_train,
         annotation_df=annotation_df,
         img_dict=img_dict,
         class_to_idx=class_to_idx,
         transforms=train_tfms if train_tfms is not None else final_tfms,
     )
-    valid_dataset = KoggClassifier(
+    valid_dataset = Kog1Classifier(
+        img_keys=files_val,
+        annotation_df=annotation_df,
+        img_dict=img_dict,
+        class_to_idx=class_to_idx,
+        transforms=final_tfms,
+    )
+    test_dataset = Kog1Classifier(
         img_keys=files_test,
         annotation_df=annotation_df,
         img_dict=img_dict,
@@ -164,8 +212,13 @@ def create_dataloaders(
         **dataloader_params,
         shuffle=False,
     )
+    test_dataloader = DataLoader(
+        test_dataset,
+        **dataloader_params,
+        shuffle=False,
+    )
 
-    return train_dataloader, valid_dataloader
+    return train_dataloader, valid_dataloader, test_dataloader
 
 
 # Function to move a file
@@ -208,7 +261,7 @@ def move_test_data():
         move_file(src_json_path, dest_json_path)
 
 
-class KoggClassifier(Dataset):
+class Kog1Classifier(Dataset):
     def __init__(
         self,
         img_keys,

@@ -179,7 +179,7 @@ def test_one_epoch(model, dataloader, device, maps_logger):
             maps_logger_per_epoch["bbox_map_50"].append(bbox_map_50)
             maps_logger_per_epoch["segm_map_50"].append(segm_map_50)
 
-            # map per class: when there are no kogg class values (None of -1), impute the previous mAP for continuity or 0 if first epoch
+            # map per class: when there are no kog1 class values (None of -1), impute the previous mAP for continuity or 0 if first epoch
             if segm_map_per_class.ndim != 0:
                 if segm_map_per_class[0] == -1:  # when map present and is -1
                     segm_map_per_class[0] = (

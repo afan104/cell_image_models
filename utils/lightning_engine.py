@@ -1,4 +1,6 @@
 import gc
+import json
+import os
 
 import lightning as L
 import numpy as np
@@ -17,8 +19,8 @@ IMG_SIZE = (1608, 1608)
 
 
 # Callback to store losses and maps
-class LossAndMapLogger(L.Callback):
-    def __init__(self, epochs, train_dataloader_size, val_dataloader_size):
+class MapLogger(L.Callback):
+    def __init__(self, epochs, train_dataloader_size, val_dataloader_size, version):
         super().__init__()
         self.current_train_idx = 0
         self.current_val_idx = 0
@@ -27,7 +29,15 @@ class LossAndMapLogger(L.Callback):
         self.train_dataloader_size = train_dataloader_size
         self.val_dataloader_size = val_dataloader_size
         self.loss_logger = np.zeros((epochs, train_dataloader_size))
-        self.maps_logger = {
+        self.maps_logger_train = {
+            SEGM_MAP_50: np.zeros((epochs, train_dataloader_size)),
+            BBOX_MAP_50: np.zeros((epochs, train_dataloader_size)),
+            KOG1_SEGM_MAP: np.zeros((epochs, train_dataloader_size)),
+            NORMAL_SEGM_MAP: np.zeros((epochs, train_dataloader_size)),
+            KOG1_BBOX_MAP: np.zeros((epochs, train_dataloader_size)),
+            NORMAL_BBOX_MAP: np.zeros((epochs, train_dataloader_size)),
+        }
+        self.maps_logger_val = {
             SEGM_MAP_50: np.zeros((epochs, val_dataloader_size)),
             BBOX_MAP_50: np.zeros((epochs, val_dataloader_size)),
             KOG1_SEGM_MAP: np.zeros((epochs, val_dataloader_size)),
@@ -35,6 +45,7 @@ class LossAndMapLogger(L.Callback):
             KOG1_BBOX_MAP: np.zeros((epochs, val_dataloader_size)),
             NORMAL_BBOX_MAP: np.zeros((epochs, val_dataloader_size)),
         }
+        self.version = version
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if (
@@ -49,6 +60,15 @@ class LossAndMapLogger(L.Callback):
         self.loss_logger[self.cur_train_epoch][self.current_train_idx] = loss
         self.current_train_idx += 1
 
+        # Store maps
+        self.update_maps(
+            pl_module.maps_train,
+            self.maps_logger_train,
+            self.cur_train_epoch,
+            self.current_train_idx,
+        )
+        self.current_train_idx += 1
+
     def on_validation_batch_end(
         self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
     ):
@@ -59,25 +79,39 @@ class LossAndMapLogger(L.Callback):
             self.cur_val_epoch += 1
             self.current_val_idx = 0
 
-        for key in self.maps_logger.keys():
-            if key in pl_module.maps.keys():
-                item = pl_module.maps[key]
-                if item is not None:
-                    self.maps_logger[key][self.cur_val_epoch][
-                        self.current_val_idx
-                    ] = item.item()
-                else:
-                    prev_val = (
-                        self.maps_logger[key][self.cur_val_epoch][
-                            self.current_val_idx - 1
-                        ]
-                        if self.current_val_idx > 0
-                        else 0
-                    )
-                    self.maps_logger[key][self.cur_val_epoch][
-                        self.current_val_idx
-                    ] = prev_val
+        # Store maps
+        self.update_maps(
+            pl_module.maps_val,
+            self.maps_logger_val,
+            self.cur_val_epoch,
+            self.current_val_idx,
+        )
+
         self.current_val_idx += 1
+
+    def update_maps(self, source_map, target_map, cur_epoch, cur_idx):
+        for key in source_map.keys():
+            item = source_map[key]
+            if item is not None:
+                target_map[key][cur_epoch][cur_idx] = item.item()
+            else:
+                prev_val = target_map[key][cur_epoch][cur_idx - 1] if cur_idx > 0 else 0
+                target_map[key][cur_epoch][cur_idx] = prev_val
+        return target_map
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        if not self.cur_train_epoch % 10 == 0:
+            return
+
+        # Save losses as npy file
+        np.save(f"output/{self.version}/losses.npy", self.loss_logger)
+
+        # save dicts as json file
+        with open(f"output/{self.version}/maps_train.json", "w") as f:
+            json.dump(self.maps_logger_train, f)
+
+        with open(f"output/{self.version}/maps_val.json", "w") as f:
+            json.dump(self.maps_logger_val, f)
 
 
 class LightningMaskRCNNModel(L.LightningModule):
@@ -86,7 +120,14 @@ class LightningMaskRCNNModel(L.LightningModule):
         self.model = model.to(self.device)
         self.optimizer = optimizer
         self.loss = None
-        self.maps = {
+        self.maps_train = {
+            SEGM_MAP_50: None,
+            BBOX_MAP_50: None,
+            KOG1_SEGM_MAP: None,
+            KOG1_BBOX_MAP: None,
+            NORMAL_BBOX_MAP: None,
+        }
+        self.maps_val = {
             SEGM_MAP_50: None,
             BBOX_MAP_50: None,
             KOG1_SEGM_MAP: None,
@@ -105,7 +146,21 @@ class LightningMaskRCNNModel(L.LightningModule):
             }
             for t in y
         ]
+
+        # get pred
+        self.model.eval()
+        with torch.no_grad():
+            pred = self.model(x)
+            # get maps
+            maskrcnn_map = MeanAveragePrecision(
+                box_format="xyxy", iou_type=tuple(["bbox", "segm"]), class_metrics=True
+            )
+            self.get_map(
+                maskrcnn_map=maskrcnn_map, model_output=pred, target_dict=y, train=True
+            )
+
         # Get loss
+        self.model.train()
         train_loss_dict = self.model(x, y)
         train_loss = sum(loss for loss in train_loss_dict.values())
 
@@ -134,13 +189,15 @@ class LightningMaskRCNNModel(L.LightningModule):
         maskrcnn_map = MeanAveragePrecision(
             box_format="xyxy", iou_type=tuple(["bbox", "segm"]), class_metrics=True
         )
-        self.get_map(maskrcnn_map=maskrcnn_map, model_output=pred, target_dict=y)
+        self.get_map(
+            maskrcnn_map=maskrcnn_map, model_output=pred, target_dict=y, train=False
+        )
 
         # log maps
         self.log_dict(
             {
-                SEGM_MAP_50: self.maps[SEGM_MAP_50],
-                BBOX_MAP_50: self.maps[BBOX_MAP_50],
+                SEGM_MAP_50: self.maps_val[SEGM_MAP_50],
+                BBOX_MAP_50: self.maps_val[BBOX_MAP_50],
             },
             prog_bar=True,
             batch_size=len(batch),
@@ -150,9 +207,9 @@ class LightningMaskRCNNModel(L.LightningModule):
         gc.collect()
         torch.cuda.empty_cache()
 
-        return self.maps[BBOX_MAP_50]
+        return self.maps_val[BBOX_MAP_50]
 
-    def get_map(self, maskrcnn_map, model_output, target_dict):
+    def get_map(self, maskrcnn_map, model_output, target_dict, train=False):
         for i in range(len(model_output)):
             model_output[i]["masks"] = Mask(
                 model_output[i]["masks"].type(torch.bool).squeeze(dim=1)
@@ -190,12 +247,20 @@ class LightningMaskRCNNModel(L.LightningModule):
         segm_map_kog1_val = segm_map_kog1_val if segm_map_kog1_val != -1 else None
 
         # save
-        self.maps[BBOX_MAP_50] = bbox_map_50_val
-        self.maps[SEGM_MAP_50] = segm_map_50_val
-        self.maps[KOG1_BBOX_MAP] = bbox_map_kog1_val
-        self.maps[KOG1_SEGM_MAP] = segm_map_kog1_val
-        self.maps[NORMAL_BBOX_MAP] = bbox_map_normal_val
-        self.maps[NORMAL_SEGM_MAP] = segm_map_normal_val
+        if train:
+            self.maps_train[BBOX_MAP_50] = bbox_map_50_val
+            self.maps_train[SEGM_MAP_50] = segm_map_50_val
+            self.maps_train[KOG1_BBOX_MAP] = bbox_map_kog1_val
+            self.maps_train[KOG1_SEGM_MAP] = segm_map_kog1_val
+            self.maps_train[NORMAL_BBOX_MAP] = bbox_map_normal_val
+            self.maps_train[NORMAL_SEGM_MAP] = segm_map_normal_val
+        else:
+            self.maps_val[BBOX_MAP_50] = bbox_map_50_val
+            self.maps_val[SEGM_MAP_50] = segm_map_50_val
+            self.maps_val[KOG1_BBOX_MAP] = bbox_map_kog1_val
+            self.maps_val[KOG1_SEGM_MAP] = segm_map_kog1_val
+            self.maps_val[NORMAL_BBOX_MAP] = bbox_map_normal_val
+            self.maps_val[NORMAL_SEGM_MAP] = segm_map_normal_val
 
     def configure_optimizers(self):
         return self.optimizer

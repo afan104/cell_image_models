@@ -3,6 +3,7 @@ json2.js
 KFOlCnqEu92Fr1MmEU9vAw.ttf
 save_models/
 output/
+Data/Data_aug/*
 
 # train data
 Data/fz* 

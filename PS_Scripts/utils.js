@@ -98,7 +98,7 @@ function jsonToImgs(doc, jsonFilePath, maskType, scale) {
   var jsonShapeData = readJsonFile(jsonFilePath)["shapes"];
 
   // grab all the paths from json
-  var shapesDict = { normal: [], kogg: [] }; // value is a list of shapes; shape is a list of points; 3D tensor-like shape
+  var shapesDict = { normal: [], kog1: [] }; // value is a list of shapes; shape is a list of points; 3D tensor-like shape
   for (var i = 0; i < jsonShapeData.length; i++) {
     var shapeData = jsonShapeData[i];
     var layer = shapeData["label"];
@@ -109,7 +109,7 @@ function jsonToImgs(doc, jsonFilePath, maskType, scale) {
 
   // Add paths to each layer
   if (maskType == "kog1") {
-    var kog1PathItem = addPathItem(doc, "kogg", shapesDict, scale);
+    var kog1PathItem = addPathItem(doc, "kog1", shapesDict, scale);
     var out = { kog1PathItem: kog1PathItem };
   }
   if (maskType == "normal") {
@@ -117,7 +117,7 @@ function jsonToImgs(doc, jsonFilePath, maskType, scale) {
     var out = { normalPathItem: normalPathItem };
   }
   if (maskType == "both") {
-    var kog1PathItem = addPathItem(doc, "kogg", shapesDict, scale);
+    var kog1PathItem = addPathItem(doc, "kog1", shapesDict, scale);
     var normalPathItem = addPathItem(doc, "normal", shapesDict, scale);
     var out = { kog1PathItem: kog1PathItem, normalPathItem: normalPathItem };
   }

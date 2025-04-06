@@ -1,3 +1,6 @@
+import json
+import os
+import shutil
 from typing import List
 
 import torch
@@ -104,3 +107,43 @@ def create_polygon_mask(image_size, vertices):
 
     # Return the image with the drawn polygon
     return mask_img
+
+
+# Function to move a file
+def move_file(src, dest):
+    if os.path.exists(src):
+        shutil.move(src, dest)
+        print(f"Moved: {src} to {dest}")
+    else:
+        print(f"File not found: {src}")
+
+
+# Function that moves test data into test folder
+def move_test_data():
+    # Define paths
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data"))
+    json_path = os.path.join(base_dir, "annotation_tracker.json")
+    test_dir = os.path.join(base_dir, "test")
+
+    # Create test directory if it doesn't exist
+    os.makedirs(test_dir, exist_ok=True)
+
+    # Load JSON data
+    print(f"Loading JSON data from {json_path}")
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Get list of test filenames
+    test_names = data.get("test", [])
+
+    # Move test images and json files
+    for test_name in test_names:
+        # Construct full source and destination paths for both .png and .json
+        src_png_path = os.path.join(base_dir, f"{test_name}.png")
+        dest_png_path = os.path.join(test_dir, f"{test_name}.png")
+        src_json_path = os.path.join(base_dir, f"{test_name}.json")
+        dest_json_path = os.path.join(test_dir, f"{test_name}.json")
+
+        # Move .png and .json files
+        move_file(src_png_path, dest_png_path)
+        move_file(src_json_path, dest_json_path)

@@ -25,7 +25,6 @@ Classes in this File:
 # Preprocessing hyperparameters
 HEAVY_MODEL_PARAMS = {
     "hidden_units": 128,
-    "kernel_size": 1,
     "padding": 3,
     "num_interm_blocks": 2,
     "max_pool": True,
@@ -60,6 +59,7 @@ def get_model(
     base_model_path=None,
     freeze_params=False,
     dtype=torch.float16,
+    **kwargs,
 ):
     # Initialize pretrained model weights
     base_model = maskrcnn_resnet50_fpn_v2(
@@ -94,10 +94,16 @@ def get_model(
         for p in base_model.parameters():
             p.requires_grad = False
 
-    kwargs = {**HEAVY_MODEL_PARAMS, "device": device, "dtype": dtype}
+    kernel_size = kwargs.get("kernel_size", 1)
+    model_kwargs = {
+        **HEAVY_MODEL_PARAMS,
+        "device": device,
+        "dtype": dtype,
+        "kernel_size": kernel_size,
+    }
     return CompositeModel(
         base_model=base_model,
-        preprocess_model=build_preproc_model(**kwargs),
+        preprocess_model=build_preproc_model(**model_kwargs),
     )
 
 
