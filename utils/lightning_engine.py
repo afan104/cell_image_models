@@ -19,7 +19,7 @@ IMG_SIZE = (1608, 1608)
 
 
 # Callback to store losses and maps
-class MapLogger(L.Callback):
+class LossAndMapLogger(L.Callback):
     def __init__(self, epochs, train_dataloader_size, val_dataloader_size, version):
         super().__init__()
         self.current_train_idx = 0
@@ -58,7 +58,6 @@ class MapLogger(L.Callback):
         # Store losses
         loss = pl_module.loss
         self.loss_logger[self.cur_train_epoch][self.current_train_idx] = loss
-        self.current_train_idx += 1
 
         # Store maps
         self.update_maps(
@@ -93,6 +92,7 @@ class MapLogger(L.Callback):
         for key in source_map.keys():
             item = source_map[key]
             if item is not None:
+                # print
                 target_map[key][cur_epoch][cur_idx] = item.item()
             else:
                 prev_val = target_map[key][cur_epoch][cur_idx - 1] if cur_idx > 0 else 0
@@ -106,12 +106,19 @@ class MapLogger(L.Callback):
         # Save losses as npy file
         np.save(f"output/{self.version}/losses.npy", self.loss_logger)
 
+        train_map_copy, val_map_copy = {}, {}
+        for keya, keyb in zip(
+            self.maps_logger_train.keys(), self.maps_logger_val.keys()
+        ):
+            train_map_copy[keya] = self.maps_logger_train[keya].copy().tolist()
+            val_map_copy[keyb] = self.maps_logger_val[keyb].copy().tolist()
+
         # save dicts as json file
         with open(f"output/{self.version}/maps_train.json", "w") as f:
-            json.dump(self.maps_logger_train, f)
+            json.dump(train_map_copy, f)
 
         with open(f"output/{self.version}/maps_val.json", "w") as f:
-            json.dump(self.maps_logger_val, f)
+            json.dump(val_map_copy, f)
 
 
 class LightningMaskRCNNModel(L.LightningModule):

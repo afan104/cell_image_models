@@ -1,15 +1,17 @@
 import argparse
+import json
 import os
 from pathlib import Path
 
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping
+from torchinfo import summary
 
 from utils.dataset_manipulation import create_dataloaders, load_data, train_tfms2
 from utils.lightning_engine import LightningMaskRCNNModel, LossAndMapLogger
 from utils.model_classes import get_model
-from utils.train_test_utils import OPS_HPS, get_optim, save_model
+from utils.train_test_utils import OPS_HPS, get_optim, save_model, test_one_epoch
 from utils.visualization_utils import visualize_losses, visualize_maps, visualize_multi
 
 PREPROCESS_FOLDER_NAMES = {
@@ -18,10 +20,17 @@ PREPROCESS_FOLDER_NAMES = {
     "pil": "pil_autocontrast",
 }
 
-BATCH_SIZE = 2
-NUM_WORKERS = 1
+SEGM_MAP_50 = "segm_map_50"
+BBOX_MAP_50 = "bbox_map_50"
+KOG1_SEGM_MAP = "kog1_segm_map"
+KOG1_BBOX_MAP = "kog1_bbox_map"
+NORMAL_SEGM_MAP = "normal_segm_map"
+NORMAL_BBOX_MAP = "normal_bbox_map"
+
+BATCH_SIZE = 4
+NUM_WORKERS = 4
 DATA_PATH = Path(f"{Path(os.getcwd())}/Data")
-EPOCHS = 100
+EPOCHS = 50
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BASE_MODEL_PATH = "save_models/model_2025-03-13_06-24-45.pth"
 
@@ -62,8 +71,8 @@ def parse_args():
         type=bool,
         required=False,
         default=False,
-        help="""Whether to include the additional 160 augmented training images (rotate90 and mirror) during training.
-          Skip the flag to not exclude them.""",
+        help="""Whether to include the additional 140 augmented training images (rotate90 and mirror) during training.
+          Skip the flag to exclude them.""",
     )
     parser.add_argument(
         "--kernel_size",
@@ -71,29 +80,16 @@ def parse_args():
         required=True,
         help="""Kernel size for conv2d layers in the AdaptivePreprocessing module.""",
     )
-
-    return parser.parse_args()
-
-
-def get_data(dataset_path, args):
-
-    # Get Data
-    img_dict, annotation_df, shapes_df, class_names, int_colors = load_data(
-        dataset_path=dataset_path, include_data_aug_paths=args.data_aug
+    parser.add_argument(
+        "--only_base_model",
+        type=bool,
+        required=False,
+        default=False,
+        help="""Whether to exclude the lightweight CNN AdaptivePreprocessing Module in the network. 
+        Skip flag to include as usual."""
     )
 
-    # Use the contrast adjustment type if specified
-    if args.contraster_type:
-        script_dir = os.path.dirname(__file__)
-        preprocess_img_dir = os.path.join(
-            script_dir, f"Data/{PREPROCESS_FOLDER_NAMES[args.contraster_type]}"
-        )
-        preprocessed_img_dict = {
-            k: Path(f"{preprocess_img_dir}/{k}.png") for k in img_dict.keys()
-        }
-        img_dict = preprocessed_img_dict
-
-    return img_dict, annotation_df, shapes_df, class_names, int_colors
+    return parser.parse_args()
 
 
 def find_last_ckpt(version):
@@ -118,7 +114,6 @@ def setup_version(args, seed: int = 1234):
     """Seed, set precision, and create directories."""
     L.seed_everything(seed)
     torch.set_float32_matmul_precision("high")
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "caching_allocator"
 
     # Versioning
     args_dict = {k: v for k, v in args._get_kwargs()}
@@ -140,10 +135,10 @@ def get_callbacks(train_dataloader, valid_dataloader, version):
         val_dataloader_size=len(valid_dataloader),
         version=version,
     )
-    early_stop_callback = EarlyStopping(
-        monitor="bbox_map_50", min_delta=0.00, patience=5, verbose=False, mode="max"
-    )
-    return [loss_and_maps_logger_callback, early_stop_callback]
+    # early_stop_callback = EarlyStopping(
+    #     monitor="bbox_map_50", min_delta=0.00, patience=15, verbose=False, mode="max"
+    # )
+    return [loss_and_maps_logger_callback]
 
 
 def build_model(class_names, args, optimizer_info):
@@ -156,8 +151,11 @@ def build_model(class_names, args, optimizer_info):
             base_model_path=BASE_MODEL_PATH,
             freeze_params=args.freeze,
             kernel_size=args.kernel_size,
+            only_base_model = args.only_base_model
         )
 
+        base_params = sum(p.numel() for p in model.parameters())
+        print(f"Model has {base_params} params")
         params_to_optimize = [p for p in model.parameters() if p.requires_grad]
         optimizer = get_optim(optimizer_info, params_to_optimize)
 
@@ -209,9 +207,12 @@ if __name__ == "__main__":
     optimizer_info = OPS_HPS[args.optimizer]
     version = setup_version(args=args)
 
+    # make sure data aug is on
+    print(f"Data aug: {str(args.data_aug)}")
+
     # Get data
-    img_dict, annotation_df, shapes_df, class_names, int_colors = get_data(
-        dataset_path=DATA_PATH, args=args
+    img_dict, annotation_df, shapes_df, class_names, int_colors = load_data(
+        preprocess_type=args.contraster_type, include_data_aug_paths=args.data_aug
     )
 
     # Get dataloaders
@@ -222,6 +223,7 @@ if __name__ == "__main__":
         device=DEVICE,
         bs=BATCH_SIZE,
         num_workers=NUM_WORKERS,
+        static_data_aug=args.data_aug,
         train_tfms=train_tfms2,
     )
 
@@ -246,7 +248,7 @@ if __name__ == "__main__":
     lit_model = build_model(
         class_names=class_names, args=args, optimizer_info=optimizer_info
     )
-    latest_ckpt = find_last_ckpt(version)
+    latest_ckpt = None  # find_last_ckpt(version)
 
     trainer.fit(
         model=lit_model,
@@ -267,5 +269,29 @@ if __name__ == "__main__":
         class_names=class_names,
         multi_example_count=3,
     )
+
+    # Test the model
+    test_map_logger = {
+        SEGM_MAP_50: [],
+        BBOX_MAP_50: [],
+        KOG1_SEGM_MAP: [],
+        KOG1_BBOX_MAP: [],
+        NORMAL_BBOX_MAP: [],
+    }
+    test_map_logger = test_one_epoch(
+        model=lit_model.model,
+        dataloader=test_dataloader,
+        device=DEVICE,
+        maps_logger=test_map_logger,
+    )
+    # write test maps to file
+    for key, vals in test_map_logger.items():
+        for i, epoch in enumerate(vals):
+            for j, tensor in enumerate(epoch):
+                test_map_logger[key][i][j] = (
+                    tensor.item() if isinstance(tensor, torch.Tensor) else tensor
+                )
+    with open(f"output/{version}/maps_test.json", "w") as f:
+        json.dump(test_map_logger, f)
 
     print("Done")

@@ -71,22 +71,49 @@ def get_dataloader_params(device, bs, num_workers):
         "batch_size": bs,
         "num_workers": num_workers,
         "persistent_workers": True,
-        "pin_memory": "cuda" in device,
-        "pin_memory_device": device,
+        "pin_memory": True,
         "collate_fn": collate_fn,
         "persistent_workers": True,
     }
 
 
 # Load dataset images and annotations
-def load_data(dataset_path, include_data_aug_paths=False):
+def load_data(preprocess_type=None, include_data_aug_paths=False):
+    ## Define path to dataset directory
+    train_dir = Path(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/train"))
+    )
+    train_dir_png = (
+        train_dir / (preprocess_type + "_autocontrast")
+        if preprocess_type
+        else train_dir / "raw"
+    )
+
     # Define path to test directory
     test_dir = Path(
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/test"))
     )
+    test_dir_png = (
+        test_dir / (preprocess_type + "_autocontrast")
+        if preprocess_type
+        else test_dir / "raw"
+    )
+    # Define path to validation directory
+    val_dir = Path(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/val"))
+    )
+    val_dir_png = (
+        val_dir / (preprocess_type + "_autocontrast")
+        if preprocess_type
+        else val_dir / "raw"
+    )
 
     # Collect all image file paths from main dataset and test directory
-    img_file_paths = list(dataset_path.glob("*.png")) + list(test_dir.glob("*.png"))
+    img_file_paths = (
+        list(train_dir_png.glob("*.png"))
+        + list(test_dir_png.glob("*.png"))
+        + list(val_dir_png.glob("*.png"))
+    )
 
     # Optionally include data augmentation images
     if include_data_aug_paths:
@@ -102,31 +129,36 @@ def load_data(dataset_path, include_data_aug_paths=False):
                 )
             ),
         ]
+        data_aug_dirs_png = [
+            (
+                aug_dir / (preprocess_type + "_autocontrast")
+                if preprocess_type
+                else aug_dir / "raw"
+            )
+            for aug_dir in data_aug_dirs
+        ]
 
-        for aug_dir in data_aug_dirs:
-            aug_images = list(aug_dir.glob("*.png"))
+        for aug_dir_png in data_aug_dirs_png:
+            aug_images = list(aug_dir_png.glob("*.png"))
             img_file_paths += aug_images
-
-        # Validate that each augmentation folder has exactly 80 images
-        assert (
-            len(list(data_aug_dirs[0].glob("*.png"))) == 80
-        ), f"Expected 80 images in {data_aug_dirs[0]}"
-        assert (
-            len(list(data_aug_dirs[1].glob("*.png"))) == 80
-        ), f"Expected 80 images in {data_aug_dirs[1]}"
 
     # Map image filenames (without extensions) to their full file paths
     img_dict = {file.stem: file for file in img_file_paths}
+    # assert len(dict)
+    expected_len = 100 if not include_data_aug_paths else 240
+    assert len(img_dict) == expected_len, f"Expected {expected_len} images in img_dict but got {len(img_dict)}"
 
     # Collect all annotation file paths (JSON) from dataset and test directory
-    annotation_file_paths = list(dataset_path.glob("fz*.json")) + list(
-        test_dir.glob("fz*.json")
+    annotation_file_paths = (
+        list(train_dir.glob("fz*.json"))
+        + list(test_dir.glob("fz*.json"))
+        + list(val_dir.glob("fz*.json"))
     )
 
     # Optionally include annotation files from data augmentation directories
     if include_data_aug_paths:
         for aug_dir in data_aug_dirs:
-            annotation_file_paths += list(aug_dir.glob("*.json"))
+            annotation_file_paths += list(aug_dir.glob("fz*.json"))
 
     # Load and combine annotation JSON files into a single dataframe
     mask_dataframes = (
@@ -163,23 +195,49 @@ def create_dataloaders(
     device,
     bs,
     num_workers,
+    static_data_aug=False,
     train_tfms=None,
 ):
     class_to_idx = {c: i for i, c in enumerate(class_names)}
     # get test files from test directory
     test_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/test"))
-    files_test = [f.split(".")[0] for f in os.listdir(test_dir) if f.endswith(".png")]
+    files_test = [
+        f.split(".")[0]
+        for f in os.listdir(test_dir)
+        if f.startswith("fz") and f.endswith(".json")
+    ]
 
     # get val files from test directory
     val_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/val"))
-    files_val = [f.split(".")[0] for f in os.listdir(val_dir) if f.endswith(".png")]
-
-    # get train files from dataset directory
-    dataset_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data"))
-    files_train = [
-        f.split(".")[0] for f in os.listdir(dataset_dir) if f.endswith(".png")
+    files_val = [
+        f.split(".")[0]
+        for f in os.listdir(val_dir)
+        if f.startswith("fz") and f.endswith(".json")
     ]
 
+    # get train files from dataset directory
+    dataset_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../Data/train")
+    )
+    files_train = [
+        f.split(".")[0]
+        for f in os.listdir(dataset_dir)
+        if f.startswith("fz") and f.endswith(".json")
+    ]
+
+    # get static data augmentation files from data augmentation directory
+    if static_data_aug:
+        data_aug_dir = Path(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../Data/Data_aug"))
+        )
+        files_train += [
+            f.split(".")[0]
+            for f in (
+                os.listdir(data_aug_dir / "mirror")
+                + os.listdir(data_aug_dir / "rotate90")
+            )
+            if f.startswith("fz") and f.endswith(".json")
+        ]
     # transforms in dataset
     train_dataset = Kog1Classifier(
         img_keys=files_train,

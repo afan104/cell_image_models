@@ -15,8 +15,8 @@ USE_MP = False
 HP_OPTIONS = {
     "optimizer": ["v1"],
     "freeze": [False],
-    "contraster_type": ["torch", None],
-    "data_aug": [True, False],
+    "contraster_type": ["manual", "pil", "torch", None],
+    "data_aug": [False],
     "kernel_size": [1, 5],
 }
 
@@ -42,16 +42,18 @@ def run_script_with_params(params, mp=False):
     log_file = f"{LOGS_DIR}/log_{params.replace('--', '_').replace(' ', '_')}.log"
     command = f"python {TARGET_SCRIPT} {params}"
 
-    with open(log_file, "w") as log:
-        if mp:
-            subprocess.Popen(command, stdout=log, stderr=log)
-        else:
-            print(f"Running command: {command}")
-            start = time.time()
-            subprocess.run(command, stdout=log, stderr=log)
-            print(
-                f"Command finished: {command} in {int(time.time() - start)} seconds\n"
-            )
+    print(command)
+
+    # with open(log_file, "w") as log:
+    #     if mp:
+    #         subprocess.Popen(command, stdout=log, stderr=log)
+    #     else:
+    #         print(f"Running command: {command}")
+    #         start = time.time()
+    #         subprocess.run(command, stdout=log, stderr=log)
+    #         print(
+    #             f"Command finished: {command} in {int(time.time() - start)} seconds\n"
+    #         )
 
 
 def kill_existing_processes():
@@ -85,7 +87,6 @@ def main():
         for params in param_combinations:
             run_script_with_params(" ".join(params))
             # Sleep to avoid overwhelming the system
-            time.sleep(60)
         print("All processes finished.")
 
 

@@ -1,9 +1,25 @@
 .DS_Store
 json2.js
 KFOlCnqEu92Fr1MmEU9vAw.ttf
-save_models/
+1logs_and_outputs_saved/
+2logs_and_outputs_saved/
+3logs_and_outputs_saved/
+conv_vis/
+logs/
 output/
+presentation/
+save_models/
+utils2/
+lightning_train_new.py
+bro.sh
+
+
+
+# Data files
 Data/Data_aug/*
+Data/test/*
+Data/train/*
+Data/val/*
 
 # train data
 Data/fz* 

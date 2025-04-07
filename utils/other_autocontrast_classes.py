@@ -48,9 +48,9 @@ def process_image(img_path):
     manual_contraster = ManualContraster()
 
     save_dirs = {
-        "pil": img_path.parent / "pil_autocontrast",
-        "torch": img_path.parent / "torch_autocontrast",
-        "manual": img_path.parent / "manual_autocontrast",
+        "pil": img_path.parent.parent / "pil_autocontrast",
+        "torch": img_path.parent.parent / "torch_autocontrast",
+        "manual": img_path.parent.parent / "manual_autocontrast",
     }
     for save_dir in save_dirs.values():
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -61,12 +61,19 @@ def process_image(img_path):
 
 
 if __name__ == "__main__":
-    repo_dir = Path(__file__).resolve().parent.parent
-    img_dir = repo_dir / "Data"
-    test_dir = img_dir / "test"
-    images = [img_path for img_path in img_dir.glob("fz*.png")] + [
-        img_path for img_path in test_dir.glob("fz*.png")
-    ]
+    data_dir = Path(__file__).resolve().parent.parent / "Data"
+    train_dir = data_dir / "train"
+    test_dir = data_dir / "test"
+    val_dir = data_dir / "val"
+    aug_dir1 = data_dir / "Data_aug" / "mirror"
+    aug_dir2 = data_dir / "Data_aug" / "rotate90"
+    images = (
+        [train_dir / img_path for img_path in (train_dir / "raw").glob("fz*.png")]
+        + [test_dir / img_path for img_path in (test_dir / "raw").glob("fz*.png")]
+        + [val_dir / img_path for img_path in (val_dir / "raw").glob("fz*.png")]
+        + [aug_dir1 / img_path for img_path in (aug_dir1 / "raw").glob("fz*.png")]
+        + [aug_dir2 / img_path for img_path in (aug_dir2 / "raw").glob("fz*.png")]
+    )
 
     num_workers = min(cpu_count(), 4)
     with Pool(num_workers) as pool:

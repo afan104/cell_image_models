@@ -57,9 +57,9 @@ def get_model(
     class_names,
     device,
     base_model_path=None,
-    freeze_params=False,
     dtype=torch.float16,
-    **kwargs,
+    only_base_model=False,
+    **kwargs
 ):
     # Initialize pretrained model weights
     base_model = maskrcnn_resnet50_fpn_v2(
@@ -81,6 +81,9 @@ def get_model(
         num_classes=len(class_names),
     )
 
+    base_model.roi_heads.detections_per_img = 150
+    base_model.roi_heads.score_thresh = 0.6
+
     if base_model_path is not None:
         base_model.load_state_dict(
             torch.load(
@@ -90,10 +93,10 @@ def get_model(
             )
         )
     base_model.to(device=device, dtype=dtype)
-    if freeze_params:
-        for p in base_model.parameters():
-            p.requires_grad = False
 
+    if only_base_model:
+        return base_model
+    print("did not return base model")
     kernel_size = kwargs.get("kernel_size", 1)
     model_kwargs = {
         **HEAVY_MODEL_PARAMS,
@@ -149,7 +152,7 @@ class AdaptiveContrastPreprocessing(nn.Module):
         )
         self.final_block = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(final_dim, 1),  # Output two values: black_threshold & shift
+            nn.Linear(final_dim, 2),  # Output two values: black_threshold & shift
         )
 
         self.param_net = nn.Sequential(
@@ -167,9 +170,10 @@ class AdaptiveContrastPreprocessing(nn.Module):
         gray_img = torch.mean(img, dim=1, keepdim=True)
 
         # pass through CNN
-        processed_img = self.param_net(gray_img)  # Shape: (B, 1, new_H, new_W)
+        threshold, shift = self.param_net(gray_img)  # Shape: (B, 1, new_H, new_W)
 
         # Convert back to 3-channel RGB format
+        
         processed_img = gray_img.expand(-1, 3, -1, -1)  # (B, 3, new_H, new_W)
 
         return processed_img

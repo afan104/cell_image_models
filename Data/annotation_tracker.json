@@ -21,6 +21,25 @@
     "fz_1110_t60_AAstarve_1",
     "fz_1110_t60_AAstarve001_1"
   ],
+  
+  "val": [
+    "fz_3244_t360_Nstarve001_1",
+    "fz_173_t0_AAstarve001_1",
+    "fz_173_t0_Glustarve_1",
+    "fz_173_t0_Glustarve001_1",
+    "fz_173_t30_AAstarve_1",
+    "fz_173_t30_Nstarve001_1",
+    "fz_1100_t0_Nstarve_1",
+    "fz_1110_t0_Glustarve_1",
+    "fz_1110_t60_AAstarve_1",
+    "fz_1110_t60_AAstarve001_1",
+    "fz_1100_t60_Nstarve001_1",
+    "fz_1100_t120_Nstarve_1",
+    "fz_1100_t120_Nstarve001_1",
+    "fz_1100_t240_Nstarve_1",
+    "fz_1100_t240_Nstarve001_1"
+],
+
   "3-21": [
     "fz_173_t60_Nstarve001_1",
     "fz_173_t0_Nstarve_1",
